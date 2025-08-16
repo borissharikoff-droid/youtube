@@ -7,7 +7,7 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8208943672:AAGWCDFE7xNugXdsqilvnmojsY_pKMvW3wA")
 
 # YouTube API Key
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "AIzaSyADyz6hxl59Uc7aBgRqkxfNxSG9JTlsfPg")
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "AIzaSyB_37P1JE0lEDvSEdUEZjAXx17L21HXDaU")
 
 # Ваш Telegram ID
 ADMIN_ID = int(os.getenv("ADMIN_ID", "250800600"))
@@ -33,6 +33,11 @@ CHANNELS = [
         "name": "VIDAK",
         "channel_id": "UCiJklQGS9xxChYyhmJZJXHQ",
         "username": "@vidakapp"
+    },
+    {
+        "name": "David Spitzer",
+        "channel_id": "UCiJklQGS9xxChYyhmJZJXHQ",  # Нужно заменить на правильный channel_id
+        "username": "@davidspitzer"  # Нужно заменить на правильный username
     }
     # Добавьте другие каналы по аналогии
 ]
