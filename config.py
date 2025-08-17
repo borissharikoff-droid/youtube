@@ -33,11 +33,12 @@ CHANNELS = [
         "name": "VIDAK",
         "channel_id": "UCiJklQGS9xxChYyhmJZJXHQ",
         "username": "@vidakapp"
-    },
-    {
-        "name": "David Spitzer",
-        "channel_id": "UCiJklQGS9xxChYyhmJZJXHQ",  # Нужно заменить на правильный channel_id
-        "username": "@davidspitzer"  # Нужно заменить на правильный username
     }
+    # Временно убираем David Spitzer, так как у него неправильный channel_id
+    # {
+    #     "name": "David Spitzer",
+    #     "channel_id": "UCiJklQGS9xxChYyhmJZJXHQ",  # Нужно заменить на правильный channel_id
+    #     "username": "@davidspitzer"  # Нужно заменить на правильный username
+    # }
     # Добавьте другие каналы по аналогии
 ]

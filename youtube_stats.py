@@ -148,6 +148,8 @@ class YouTubeStats:
         elif days == 2:  # Вчера
             start_date = (end_date - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
             end_date = start_date + timedelta(days=1)
+        elif days == 3:  # Расширенный поиск для сегодня (включая вчера)
+            start_date = (end_date - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         elif days == 7:  # Неделя
             start_date = end_date - timedelta(days=7)
         else:  # Все время
@@ -202,13 +204,13 @@ class YouTubeStats:
                 # Получаем видео за разные периоды
                 end_date = datetime.utcnow()
                 
-                # Сегодня
-                today_start = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                # Сегодня (расширенный поиск - включаем последние 2 дня)
+                today_start = (end_date - timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0)
                 today_videos = self.get_videos_for_period(channel_id, today_start, end_date)
                 
-                # Вчера
-                yesterday_start = (end_date - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-                yesterday_end = yesterday_start + timedelta(days=1)
+                # Вчера (расширенный поиск - включаем последние 3 дня)
+                yesterday_start = (end_date - timedelta(days=3)).replace(hour=0, minute=0, second=0, microsecond=0)
+                yesterday_end = (end_date - timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=999999)
                 yesterday_videos = self.get_videos_for_period(channel_id, yesterday_start, yesterday_end)
                 
                 # Неделя
@@ -230,7 +232,10 @@ class YouTubeStats:
                 'all_time': {'views': 0, 'likes': 0, 'comments': 0}
             }
             
+
+            
             for channel_name, data in all_channels_data.items():
+                # Сегодня
                 # Сегодня
                 for video in data['today_videos']:
                     summary['today']['views'] += video['views']
@@ -287,7 +292,6 @@ class YouTubeStats:
                 )
                 
                 for video in videos:
-                    print(f"DEBUG: Видео '{video['title'][:30]}...' | published_at: {video['published_at']} | is_scheduled: {video.get('is_scheduled', False)} | scheduled_time: {video.get('scheduled_time', 'None')}")
                     if video.get('is_scheduled', False):
                         total_scheduled += 1
                     else:
