@@ -7,7 +7,7 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8208943672:AAGWCDFE7xNugXdsqilvnmojsY_pKMvW3wA")
 
 # YouTube API Key
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "AIzaSyB_37P1JE0lEDvSEdUEZjAXx17L21HXDaU")
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "AIzaSyDBi9yLcdpYLR8jHG4FCG7Bq6mb7H1BWxs")
 
 # Ваш Telegram ID
 ADMIN_ID = int(os.getenv("ADMIN_ID", "250800600"))
