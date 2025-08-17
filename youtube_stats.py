@@ -7,7 +7,7 @@ class YouTubeStats:
     def __init__(self):
         self.youtube = build('youtube', 'v3', developerKey=config.YOUTUBE_API_KEY)
         self._cache = {}
-        self._cache_timeout = 300  # 5 минут кэш
+        self._cache_timeout = 60  # 1 минута кэш для тестирования
     
     def _get_cached_data(self, key):
         """Получает данные из кэша"""
@@ -75,7 +75,10 @@ class YouTubeStats:
             
             video_ids = [item['id']['videoId'] for item in videos_response['items']]
             
+            print(f"Найдено {len(video_ids)} видео для канала {channel_id}")
+            
             if not video_ids:
+                print(f"Нет видео для канала {channel_id}")
                 self._set_cached_data(cache_key, [])
                 return []
             
@@ -195,9 +198,16 @@ class YouTubeStats:
             
             for channel in config.CHANNELS:
                 channel_id = channel['channel_id']
+                channel_name = channel['name']
+                
+                print(f"Обрабатываем канал: {channel_name}")
+                
                 channel_stats = self.get_channel_stats(channel_id)
                 if not channel_stats:
+                    print(f"Не удалось получить статистику канала {channel_name}")
                     continue
+                
+                print(f"Канал {channel_name} найден, подписчиков: {channel_stats['subscribers']:,}")
                 
                 # Получаем видео за разные периоды
                 end_date = datetime.utcnow()
