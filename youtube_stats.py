@@ -62,22 +62,20 @@ class YouTubeStats:
             return cached
             
         try:
-            # Получаем видео канала - убираем publishedBefore для получения всех видео
+            # Получаем видео канала
             videos_response = self.youtube.search().list(
                 part='id,snippet',
                 channelId=channel_id,
                 order='date',
                 type='video',
                 publishedAfter=start_date.isoformat() + 'Z',
+                publishedBefore=end_date.isoformat() + 'Z',
                 maxResults=50
             ).execute()
             
             video_ids = [item['id']['videoId'] for item in videos_response['items']]
             
-            print(f"DEBUG: Найдено {len(video_ids)} видео для канала {channel_id}")
-            
             if not video_ids:
-                print(f"DEBUG: Нет видео для канала {channel_id}")
                 self._set_cached_data(cache_key, [])
                 return []
             
@@ -124,15 +122,10 @@ class YouTubeStats:
                     except Exception as e:
                         print(f"Ошибка при получении комментариев к видео {video['id']}: {e}")
                 
-                video_views = int(stats.get('viewCount', 0))
-                video_likes = int(stats.get('likeCount', 0))
-                
-                print(f"DEBUG: Видео '{video['snippet']['title'][:30]}...' - {video_views:,} просмотров, {video_likes:,} лайков")
-                
                 videos.append({
                     'title': video['snippet']['title'],
-                    'views': video_views,
-                    'likes': video_likes,
+                    'views': int(stats.get('viewCount', 0)),
+                    'likes': int(stats.get('likeCount', 0)),
                     'comments': comment_count,
                     'published_at': video['snippet']['publishedAt'],
                     'is_scheduled': is_scheduled,
@@ -151,14 +144,12 @@ class YouTubeStats:
         end_date = datetime.utcnow()
         
         if days == 1:  # Сегодня
-            start_date = (end_date - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+            start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
         elif days == 2:  # Вчера
-            start_date = (end_date - timedelta(days=14)).replace(hour=0, minute=0, second=0, microsecond=0)
-            end_date = (end_date - timedelta(days=7)).replace(hour=23, minute=59, second=59, microsecond=999999)
-        elif days == 3:  # Расширенный поиск для сегодня (включая вчера)
-            start_date = (end_date - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+            start_date = (end_date - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = start_date + timedelta(days=1)
         elif days == 7:  # Неделя
-            start_date = end_date - timedelta(days=30)
+            start_date = end_date - timedelta(days=7)
         else:  # Все время
             start_date = datetime(2020, 1, 1)
         
@@ -211,13 +202,13 @@ class YouTubeStats:
                 # Получаем видео за разные периоды
                 end_date = datetime.utcnow()
                 
-                # Сегодня (ищем за последние 7 дней)
-                today_start = (end_date - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+                # Сегодня
+                today_start = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
                 today_videos = self.get_videos_for_period(channel_id, today_start, end_date)
                 
-                # Вчера (ищем за последние 14 дней)
-                yesterday_start = (end_date - timedelta(days=14)).replace(hour=0, minute=0, second=0, microsecond=0)
-                yesterday_end = (end_date - timedelta(days=7)).replace(hour=23, minute=59, second=59, microsecond=999999)
+                # Вчера
+                yesterday_start = (end_date - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+                yesterday_end = yesterday_start + timedelta(days=1)
                 yesterday_videos = self.get_videos_for_period(channel_id, yesterday_start, yesterday_end)
                 
                 # Неделя
@@ -243,27 +234,23 @@ class YouTubeStats:
             
             for channel_name, data in all_channels_data.items():
                 # Сегодня
-                today_count = len(data['today_videos'])
+                # Сегодня
                 for video in data['today_videos']:
                     summary['today']['views'] += video['views']
                     summary['today']['likes'] += video['likes']
                     summary['today']['comments'] += video['comments']
                 
                 # Вчера
-                yesterday_count = len(data['yesterday_videos'])
                 for video in data['yesterday_videos']:
                     summary['yesterday']['views'] += video['views']
                     summary['yesterday']['likes'] += video['likes']
                     summary['yesterday']['comments'] += video['comments']
                 
                 # Неделя
-                week_count = len(data['week_videos'])
                 for video in data['week_videos']:
                     summary['week']['views'] += video['views']
                     summary['week']['likes'] += video['likes']
                     summary['week']['comments'] += video['comments']
-                
-                print(f"DEBUG: {channel_name} - Сегодня: {today_count} видео, Вчера: {yesterday_count} видео, Неделя: {week_count} видео")
                 
                 # Все время (общие просмотры канала)
                 summary['all_time']['views'] += data['channel_stats']['total_views']
@@ -295,11 +282,11 @@ class YouTubeStats:
             for channel in config.CHANNELS:
                 channel_id = channel['channel_id']
                 
-                # Получаем видео за последние 7 дней
+                # Получаем видео за сегодня
                 videos = self.get_videos_for_period(
                     channel_id, 
-                    (datetime.utcnow() - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0),
-                    datetime.utcnow()
+                    datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0),
+                    datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
                 )
                 
                 for video in videos:
