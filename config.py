@@ -12,6 +12,19 @@ YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "AIzaSyDBi9yLcdpYLR8jHG4FCG7Bq6mb
 # Ваш Telegram ID
 ADMIN_ID = int(os.getenv("ADMIN_ID", "250800600"))
 
+# Настройки лимитов API
+API_QUOTA_LIMIT = 10000  # Дневной лимит YouTube API (единиц)
+API_QUOTA_PER_REQUEST = {
+    'channels.list': 1,
+    'videos.list': 1,
+    'search.list': 100,
+    'commentThreads.list': 1
+}
+
+# Лимиты запросов для пользователей
+DAILY_REQUEST_LIMIT = 5  # Максимум запросов в день на пользователя
+REQUEST_COOLDOWN = 300  # 5 минут между запросами
+
 # Список каналов для мониторинга
 CHANNELS = [
     {

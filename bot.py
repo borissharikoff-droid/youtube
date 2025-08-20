@@ -5,6 +5,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQuer
 import config
 from youtube_stats import YouTubeStats
 from trends_analyzer import TrendsAnalyzer
+from request_tracker import RequestTracker
 
 # Настройка логирования
 logging.basicConfig(
@@ -39,9 +40,18 @@ class YouTubeStatsBot:
     def __init__(self):
         self.youtube_stats = YouTubeStats()
         self.trends_analyzer = TrendsAnalyzer()
+        self.request_tracker = RequestTracker()
     
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /start"""
+        
+        user_id = update.effective_user.id
+        
+        # Проверяем лимиты запросов
+        can_request, message_text = self.request_tracker.can_make_request(user_id)
+        if not can_request:
+            await update.message.reply_text(f"⚠️ {message_text}")
+            return
         
         try:
             # Показываем сообщение о загрузке
@@ -51,6 +61,9 @@ class YouTubeStatsBot:
             summary_stats = self.youtube_stats.get_summary_stats()
             today_video_stats = self.youtube_stats.get_today_video_stats()
             
+            # Получаем статистику пользователя
+            user_stats = self.request_tracker.get_user_stats(user_id)
+            
             # Формируем сообщение со сводной статистикой
             message = "📊 **Статистика по отслеживаемым каналам:**\n\n"
             message += f"За сегодня: {summary_stats['today']['views']:,}👁️ {summary_stats['today']['likes']:,}👍 {summary_stats['today']['comments']:,}💬\n"
@@ -58,7 +71,11 @@ class YouTubeStatsBot:
             message += f"За неделю: {summary_stats['week']['views']:,}👁️ {summary_stats['week']['likes']:,}👍 {summary_stats['week']['comments']:,}💬\n"
             message += f"За все время: {summary_stats['all_time']['views']:,}👁️ {summary_stats['all_time']['likes']:,}👍 {summary_stats['all_time']['comments']:,}💬\n\n"
             message += f"📹 Видео за сегодня: {today_video_stats['uploaded']} загружено, {today_video_stats['scheduled']} в отложке\n"
-            message += f"Каналов отслеживается: {len(config.CHANNELS)}\n"
+            message += f"Каналов отслеживается: {len(config.CHANNELS)}\n\n"
+            
+            # Добавляем информацию о запросах
+            message += f"📈 **Запросов: {user_stats['requests_today']}/{user_stats['requests_limit']}**\n"
+            message += f"API квота: {user_stats['api_quota_used']:,}/{user_stats['api_quota_limit']:,}\n\n"
             
             # Добавляем список каналов с гиперссылками
             channel_links = []
@@ -86,6 +103,9 @@ class YouTubeStatsBot:
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
+            # Записываем запрос
+            self.request_tracker.record_request(user_id, "start")
+            
             # Удаляем сообщение о загрузке и отправляем результат
             await loading_message.delete()
             await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
@@ -97,10 +117,21 @@ class YouTubeStatsBot:
     async def stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /stats"""
         
+        user_id = update.effective_user.id
+        
+        # Проверяем лимиты запросов
+        can_request, message_text = self.request_tracker.can_make_request(user_id)
+        if not can_request:
+            await update.message.reply_text(f"⚠️ {message_text}")
+            return
+        
         await update.message.reply_text("Получаю статистику...")
         
         try:
             daily_stats = self.youtube_stats.get_daily_stats()
+            
+            # Записываем запрос
+            self.request_tracker.record_request(user_id, "stats")
             
             if not daily_stats:
                 await update.message.reply_text("Не удалось получить статистику.")
@@ -170,10 +201,21 @@ class YouTubeStatsBot:
     async def day_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /day - сводная статистика за сутки"""
         
+        user_id = update.effective_user.id
+        
+        # Проверяем лимиты запросов
+        can_request, message_text = self.request_tracker.can_make_request(user_id)
+        if not can_request:
+            await update.message.reply_text(f"⚠️ {message_text}")
+            return
+        
         await update.message.reply_text("Получаю сводную статистику за день...")
         
         try:
             daily_stats = self.youtube_stats.get_daily_stats()
+            
+            # Записываем запрос
+            self.request_tracker.record_request(user_id, "day_stats")
             
             if not daily_stats:
                 await update.message.reply_text("Не удалось получить статистику.")
@@ -265,6 +307,14 @@ class YouTubeStatsBot:
     
     async def send_period_stats(self, query, days, period_name):
         """Отправляет статистику за указанный период"""
+        user_id = query.from_user.id
+        
+        # Проверяем лимиты запросов
+        can_request, message_text = self.request_tracker.can_make_request(user_id)
+        if not can_request:
+            await query.edit_message_text(f"⚠️ {message_text}")
+            return
+        
         await query.edit_message_text("Получаю статистику...")
         
         try:
@@ -272,6 +322,9 @@ class YouTubeStatsBot:
                 stats = self.youtube_stats.get_stats_by_period(365)  # Год как приближение
             else:
                 stats = self.youtube_stats.get_stats_by_period(days)
+            
+            # Записываем запрос
+            self.request_tracker.record_request(user_id, f"period_stats_{days}")
             
             if not stats:
                 await query.edit_message_text(f"Не удалось получить статистику за {period_name}.")
@@ -348,9 +401,20 @@ class YouTubeStatsBot:
     async def show_main_menu(self, query):
         """Показывает главное меню со статистикой"""
         try:
+            user_id = query.from_user.id
+            
+            # Проверяем лимиты запросов
+            can_request, message_text = self.request_tracker.can_make_request(user_id)
+            if not can_request:
+                await query.edit_message_text(f"⚠️ {message_text}")
+                return
+            
             # Получаем сводную статистику
             summary_stats = self.youtube_stats.get_summary_stats()
             today_video_stats = self.youtube_stats.get_today_video_stats()
+            
+            # Получаем статистику пользователя
+            user_stats = self.request_tracker.get_user_stats(user_id)
             
             # Формируем сообщение со сводной статистикой
             message = "📊 **Статистика по отслеживаемым каналам:**\n\n"
@@ -359,7 +423,11 @@ class YouTubeStatsBot:
             message += f"За неделю: {summary_stats['week']['views']:,}👁️ {summary_stats['week']['likes']:,}👍 {summary_stats['week']['comments']:,}💬\n"
             message += f"За все время: {summary_stats['all_time']['views']:,}👁️ {summary_stats['all_time']['likes']:,}👍 {summary_stats['all_time']['comments']:,}💬\n\n"
             message += f"📹 Видео за сегодня: {today_video_stats['uploaded']} загружено, {today_video_stats['scheduled']} в отложке\n"
-            message += f"Каналов отслеживается: {len(config.CHANNELS)}\n"
+            message += f"Каналов отслеживается: {len(config.CHANNELS)}\n\n"
+            
+            # Добавляем информацию о запросах
+            message += f"📈 **Запросов: {user_stats['requests_today']}/{user_stats['requests_limit']}**\n"
+            message += f"API квота: {user_stats['api_quota_used']:,}/{user_stats['api_quota_limit']:,}\n\n"
             
             # Добавляем список каналов с гиперссылками
             channel_links = []
@@ -387,6 +455,9 @@ class YouTubeStatsBot:
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
+            # Записываем запрос
+            self.request_tracker.record_request(user_id, "main_menu")
+            
             await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
             
         except Exception as e:
@@ -395,11 +466,22 @@ class YouTubeStatsBot:
     
     async def show_trends_analysis(self, query):
         """Показывает анализ трендов YouTube"""
+        user_id = query.from_user.id
+        
+        # Проверяем лимиты запросов
+        can_request, message_text = self.request_tracker.can_make_request(user_id)
+        if not can_request:
+            await query.edit_message_text(f"⚠️ {message_text}")
+            return
+        
         await query.edit_message_text("🔍 Анализирую тренды YouTube...")
         
         try:
             # Получаем анализ трендов
             trends_data = self.trends_analyzer.analyze_trends()
+            
+            # Записываем запрос
+            self.request_tracker.record_request(user_id, "trends_analysis")
             
             if not trends_data:
                 await query.edit_message_text("Не удалось получить данные о трендах.")
@@ -471,11 +553,22 @@ class YouTubeStatsBot:
     
     async def show_trends_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /trends"""
+        user_id = update.effective_user.id
+        
+        # Проверяем лимиты запросов
+        can_request, message_text = self.request_tracker.can_make_request(user_id)
+        if not can_request:
+            await update.message.reply_text(f"⚠️ {message_text}")
+            return
+        
         await update.message.reply_text("🔍 Анализирую тренды YouTube...")
         
         try:
             # Получаем анализ трендов
             trends_data = self.trends_analyzer.analyze_trends()
+            
+            # Записываем запрос
+            self.request_tracker.record_request(user_id, "trends_command")
             
             if not trends_data:
                 await update.message.reply_text("Не удалось получить данные о трендах.")
@@ -550,6 +643,7 @@ class YouTubeStatsBot:
 /stats - Получить детальную статистику за сегодня
 /day - Сводная статистика за сутки
 /trends - Анализ трендов YouTube
+/quota - Показать статистику запросов
 /help - Показать это сообщение
 
 📊 Статистика включает:
@@ -559,8 +653,32 @@ class YouTubeStatsBot:
 • Количество видео за период
 • Средние показатели на видео
 • Анализ трендов YouTube
+
+⚠️ Лимиты:
+• 5 запросов в день на пользователя
+• 5 минут между запросами
+• Кэширование данных 30 минут
         """
         await update.message.reply_text(help_text)
+    
+    async def quota_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /quota - показывает статистику запросов"""
+        user_id = update.effective_user.id
+        user_stats = self.request_tracker.get_user_stats(user_id)
+        
+        message = "📊 **Статистика запросов:**\n\n"
+        message += f"👤 **Ваши запросы:**\n"
+        message += f"• Сегодня: {user_stats['requests_today']}/{user_stats['requests_limit']}\n"
+        message += f"• Осталось: {user_stats['remaining_requests']}\n\n"
+        message += f"🌐 **API квота:**\n"
+        message += f"• Использовано: {user_stats['api_quota_used']:,}/{user_stats['api_quota_limit']:,}\n"
+        message += f"• Осталось: {user_stats['api_quota_limit'] - user_stats['api_quota_used']:,}\n\n"
+        message += f"⏰ **Лимиты:**\n"
+        message += f"• Максимум запросов в день: {config.DAILY_REQUEST_LIMIT}\n"
+        message += f"• Кулдаун между запросами: {config.REQUEST_COOLDOWN // 60} минут\n"
+        message += f"• Кэширование данных: 30 минут"
+        
+        await update.message.reply_text(message, parse_mode='Markdown')
 
 def main():
     """Запуск бота"""
@@ -580,6 +698,7 @@ def main():
         application.add_handler(CommandHandler("stats", bot.stats))
         application.add_handler(CommandHandler("day", bot.day_stats))
         application.add_handler(CommandHandler("trends", bot.show_trends_command))
+        application.add_handler(CommandHandler("quota", bot.quota_command))
         application.add_handler(CommandHandler("help", bot.help_command))
         
         # Добавляем обработчик кнопок

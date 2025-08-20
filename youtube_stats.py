@@ -7,7 +7,7 @@ class YouTubeStats:
     def __init__(self):
         self.youtube = build('youtube', 'v3', developerKey=config.YOUTUBE_API_KEY)
         self._cache = {}
-        self._cache_timeout = 60  # 1 минута кэш для тестирования
+        self._cache_timeout = 1800  # 30 минут кэш для оптимизации
     
     def _get_cached_data(self, key):
         """Получает данные из кэша"""
@@ -100,15 +100,15 @@ class YouTubeStats:
                     is_scheduled = published_at.replace(tzinfo=None) > datetime.utcnow()
                     scheduled_time = published_at.strftime('%H:%M') if is_scheduled else None
                 
-                # Получаем комментарии к видео (только если есть комментарии)
+                # Получаем комментарии к видео (только для видео с большим количеством комментариев)
                 video_comments = []
                 comment_count = int(stats.get('commentCount', 0))
-                if comment_count > 0:
+                if comment_count > 10:  # Только для видео с более чем 10 комментариями
                     try:
                         comments_response = self.youtube.commentThreads().list(
                             part='snippet',
                             videoId=video['id'],
-                            maxResults=3,  # Уменьшили с 5 до 3
+                            maxResults=2,  # Уменьшили до 2 комментариев
                             order='relevance'
                         ).execute()
                         
@@ -120,7 +120,7 @@ class YouTubeStats:
                             clean_text = re.sub(r'<[^>]+>', '', comment_text)
                             video_comments.append({
                                 'author': author_name,
-                                'text': clean_text[:80] + "..." if len(clean_text) > 80 else clean_text
+                                'text': clean_text[:60] + "..." if len(clean_text) > 60 else clean_text
                             })
                     except Exception as e:
                         print(f"Ошибка при получении комментариев к видео {video['id']}: {e}")
