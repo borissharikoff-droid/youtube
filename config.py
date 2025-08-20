@@ -38,6 +38,11 @@ CHANNELS = [
         "name": "David Spitzer",
         "channel_id": "UCpwsCGtcWd5ARq-SuGAqCcA",
         "username": "@DavidSpitzer-il9kx"
+    },
+    {
+        "name": "NERSYANE",
+        "channel_id": "UCVxRfn6OfDRk1ddym4KejWQ",
+        "username": "@Ners1syane"
     }
     # Добавьте другие каналы по аналогии
 ]
