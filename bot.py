@@ -119,7 +119,7 @@ class YouTubeStatsBot:
             
             # Удаляем сообщение о загрузке и отправляем результат
             await loading_message.delete()
-            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown', disable_web_page_preview=True)
             
         except Exception as e:
             logger.error(f"Ошибка при получении сводной статистики: {e}")
@@ -199,11 +199,11 @@ class YouTubeStatsBot:
                 parts = [message[i:i+4096] for i in range(0, len(message), 4096)]
                 for i, part in enumerate(parts):
                     if i == 0:
-                        await update.message.reply_text(part, parse_mode='Markdown')
+                        await update.message.reply_text(part, parse_mode='Markdown', disable_web_page_preview=True)
                     else:
-                        await update.message.reply_text(part, parse_mode='Markdown')
+                        await update.message.reply_text(part, parse_mode='Markdown', disable_web_page_preview=True)
             else:
-                await update.message.reply_text(message, parse_mode='Markdown')
+                await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
                 
         except Exception as e:
             logger.error(f"Ошибка при получении статистики: {e}")
@@ -287,7 +287,7 @@ class YouTubeStatsBot:
                 message += f"👍 Лайки: {avg_likes:.0f}\n"
                 message += f"💬 Комментарии: {avg_comments:.0f}\n"
             
-            await update.message.reply_text(message, parse_mode='Markdown')
+            await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
                 
         except Exception as e:
             logger.error(f"Ошибка при получении сводной статистики: {e}")
@@ -398,7 +398,7 @@ class YouTubeStatsBot:
                 # Отправляем остальные части как новые сообщения
                 remaining_parts = [message[i:i+4096] for i in range(4096, len(message), 4096)]
                 for part in remaining_parts:
-                    await query.message.reply_text(part, parse_mode='Markdown')
+                    await query.message.reply_text(part, parse_mode='Markdown', disable_web_page_preview=True)
             else:
                 # Добавляем кнопку домой
                 keyboard = [[InlineKeyboardButton("🏠 Домой", callback_data="back_to_main")]]
@@ -565,7 +565,7 @@ class YouTubeStatsBot:
                 # Отправляем остальные части как новые сообщения
                 remaining_parts = [message[i:i+4096] for i in range(4096, len(message), 4096)]
                 for part in remaining_parts:
-                    await query.message.reply_text(part, parse_mode='Markdown')
+                    await query.message.reply_text(part, parse_mode='Markdown', disable_web_page_preview=True)
             else:
                 await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
             
@@ -645,11 +645,11 @@ class YouTubeStatsBot:
                 parts = [message[i:i+4096] for i in range(0, len(message), 4096)]
                 for i, part in enumerate(parts):
                     if i == 0:
-                        await update.message.reply_text(part, parse_mode='Markdown')
+                        await update.message.reply_text(part, parse_mode='Markdown', disable_web_page_preview=True)
                     else:
-                        await update.message.reply_text(part, parse_mode='Markdown')
+                        await update.message.reply_text(part, parse_mode='Markdown', disable_web_page_preview=True)
             else:
-                await update.message.reply_text(message, parse_mode='Markdown')
+                await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
             
         except Exception as e:
             logger.error(f"Ошибка при анализе трендов: {e}")
@@ -700,7 +700,7 @@ class YouTubeStatsBot:
         message += f"• Кулдаун между запросами: {config.REQUEST_COOLDOWN // 60} минут\n"
         message += f"• Кэширование данных: 30 минут"
         
-        await update.message.reply_text(message, parse_mode='Markdown')
+        await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
 
 def main():
     """Запуск бота"""

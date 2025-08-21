@@ -97,7 +97,10 @@ class YouTubeStats:
                 is_scheduled = False
                 scheduled_time = None
                 if start_date.date() == datetime.utcnow().date():
-                    is_scheduled = published_at.replace(tzinfo=None) > datetime.utcnow()
+                    # Видео считается отложенным, если время публикации в будущем
+                    current_utc = datetime.utcnow()
+                    published_utc = published_at.replace(tzinfo=None)
+                    is_scheduled = published_utc > current_utc
                     scheduled_time = published_at.strftime('%H:%M') if is_scheduled else None
                 
                 # Получаем комментарии к видео (только для видео с большим количеством комментариев)
@@ -289,18 +292,23 @@ class YouTubeStats:
             total_uploaded = 0
             total_scheduled = 0
             
+            current_utc = datetime.utcnow()
+            today_start = current_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+            today_end = current_utc.replace(hour=23, minute=59, second=59, microsecond=999999)
+            
             for channel in config.CHANNELS:
                 channel_id = channel['channel_id']
                 
                 # Получаем видео за сегодня
-                videos = self.get_videos_for_period(
-                    channel_id, 
-                    datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0),
-                    datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
-                )
+                videos = self.get_videos_for_period(channel_id, today_start, today_end)
                 
                 for video in videos:
-                    if video.get('is_scheduled', False):
+                    # Проверяем время публикации видео
+                    published_at = datetime.fromisoformat(video['published_at'].replace('Z', '+00:00'))
+                    published_utc = published_at.replace(tzinfo=None)
+                    
+                    # Видео считается отложенным, если время публикации в будущем
+                    if published_utc > current_utc:
                         total_scheduled += 1
                     else:
                         total_uploaded += 1

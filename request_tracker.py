@@ -66,6 +66,7 @@ class RequestTracker:
                 'last_request': 0,
                 'daily_reset': current_time
             }
+            self.save_data()  # Сохраняем данные сразу после инициализации
         
         user_data = self.data['users'][user_id_str]
         
@@ -73,6 +74,7 @@ class RequestTracker:
         if current_time - user_data['daily_reset'] >= 86400:
             user_data['requests_today'] = 0
             user_data['daily_reset'] = current_time
+            self.save_data()  # Сохраняем данные после сброса
         
         # Проверяем лимит запросов в день
         if user_data['requests_today'] >= config.DAILY_REQUEST_LIMIT:
@@ -114,14 +116,14 @@ class RequestTracker:
         user_id_str = str(user_id)
         current_time = int(time.time())
         
+        # Инициализируем данные пользователя, если их нет
         if user_id_str not in self.data['users']:
-            return {
+            self.data['users'][user_id_str] = {
                 'requests_today': 0,
-                'requests_limit': config.DAILY_REQUEST_LIMIT,
-                'remaining_requests': config.DAILY_REQUEST_LIMIT,
-                'api_quota_used': self.data['api_quota']['used'],
-                'api_quota_limit': config.API_QUOTA_LIMIT
+                'last_request': 0,
+                'daily_reset': current_time
             }
+            self.save_data()
         
         user_data = self.data['users'][user_id_str]
         
