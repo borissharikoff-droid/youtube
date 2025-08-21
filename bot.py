@@ -57,9 +57,10 @@ class YouTubeStatsBot:
             # Показываем сообщение о загрузке
             loading_message = await update.message.reply_text("📊 Загружаю статистику...")
             
-            # Получаем сводную статистику (оптимизированная версия)
+            # Получаем сводную статистику и детальную статистику по каналам
             summary_stats = self.youtube_stats.get_summary_stats()
             today_video_stats = self.youtube_stats.get_today_video_stats()
+            detailed_stats = self.youtube_stats.get_detailed_channel_stats()
             
             # Получаем статистику пользователя
             user_stats = self.request_tracker.get_user_stats(user_id)
@@ -67,8 +68,18 @@ class YouTubeStatsBot:
             # Формируем сообщение со сводной статистикой
             message = "📊 **Статистика по отслеживаемым каналам:**\n\n"
             message += f"За сегодня: {summary_stats['today']['views']:,}👁️ {summary_stats['today']['likes']:,}👍 {summary_stats['today']['comments']:,}💬\n"
-            message += f"За вчера: {summary_stats['yesterday']['views']:,}👁️ {summary_stats['yesterday']['likes']:,}👍 {summary_stats['yesterday']['comments']:,}💬\n"
-            message += f"За неделю: {summary_stats['week']['views']:,}👁️ {summary_stats['week']['likes']:,}👍 {summary_stats['week']['comments']:,}💬\n"
+            
+            # Добавляем детальную статистику по каналам за сегодня
+            for channel_data in detailed_stats['today']:
+                message += f"• {channel_data['channel_display']}: {channel_data['views']:,} просмотров, {channel_data['likes']:,} лайков, {channel_data['comments']:,} комментов\n"
+            
+            message += f"\nЗа вчера: {summary_stats['yesterday']['views']:,}👁️ {summary_stats['yesterday']['likes']:,}👍 {summary_stats['yesterday']['comments']:,}💬\n"
+            
+            # Добавляем детальную статистику по каналам за вчера
+            for channel_data in detailed_stats['yesterday']:
+                message += f"• {channel_data['channel_display']}: {channel_data['views']:,} просмотров, {channel_data['likes']:,} лайков, {channel_data['comments']:,} комментов\n"
+            
+            message += f"\nЗа неделю: {summary_stats['week']['views']:,}👁️ {summary_stats['week']['likes']:,}👍 {summary_stats['week']['comments']:,}💬\n"
             message += f"За все время: {summary_stats['all_time']['views']:,}👁️ {summary_stats['all_time']['likes']:,}👍 {summary_stats['all_time']['comments']:,}💬\n\n"
             message += f"📹 Видео за сегодня: {today_video_stats['uploaded']} загружено, {today_video_stats['scheduled']} в отложке\n"
             message += f"Каналов отслеживается: {len(config.CHANNELS)}\n\n"
@@ -409,9 +420,10 @@ class YouTubeStatsBot:
                 await query.edit_message_text(f"⚠️ {message_text}")
                 return
             
-            # Получаем сводную статистику
+            # Получаем сводную статистику и детальную статистику по каналам
             summary_stats = self.youtube_stats.get_summary_stats()
             today_video_stats = self.youtube_stats.get_today_video_stats()
+            detailed_stats = self.youtube_stats.get_detailed_channel_stats()
             
             # Получаем статистику пользователя
             user_stats = self.request_tracker.get_user_stats(user_id)
@@ -419,8 +431,18 @@ class YouTubeStatsBot:
             # Формируем сообщение со сводной статистикой
             message = "📊 **Статистика по отслеживаемым каналам:**\n\n"
             message += f"За сегодня: {summary_stats['today']['views']:,}👁️ {summary_stats['today']['likes']:,}👍 {summary_stats['today']['comments']:,}💬\n"
-            message += f"За вчера: {summary_stats['yesterday']['views']:,}👁️ {summary_stats['yesterday']['likes']:,}👍 {summary_stats['yesterday']['comments']:,}💬\n"
-            message += f"За неделю: {summary_stats['week']['views']:,}👁️ {summary_stats['week']['likes']:,}👍 {summary_stats['week']['comments']:,}💬\n"
+            
+            # Добавляем детальную статистику по каналам за сегодня
+            for channel_data in detailed_stats['today']:
+                message += f"• {channel_data['channel_display']}: {channel_data['views']:,} просмотров, {channel_data['likes']:,} лайков, {channel_data['comments']:,} комментов\n"
+            
+            message += f"\nЗа вчера: {summary_stats['yesterday']['views']:,}👁️ {summary_stats['yesterday']['likes']:,}👍 {summary_stats['yesterday']['comments']:,}💬\n"
+            
+            # Добавляем детальную статистику по каналам за вчера
+            for channel_data in detailed_stats['yesterday']:
+                message += f"• {channel_data['channel_display']}: {channel_data['views']:,} просмотров, {channel_data['likes']:,} лайков, {channel_data['comments']:,} комментов\n"
+            
+            message += f"\nЗа неделю: {summary_stats['week']['views']:,}👁️ {summary_stats['week']['likes']:,}👍 {summary_stats['week']['comments']:,}💬\n"
             message += f"За все время: {summary_stats['all_time']['views']:,}👁️ {summary_stats['all_time']['likes']:,}👍 {summary_stats['all_time']['comments']:,}💬\n\n"
             message += f"📹 Видео за сегодня: {today_video_stats['uploaded']} загружено, {today_video_stats['scheduled']} в отложке\n"
             message += f"Каналов отслеживается: {len(config.CHANNELS)}\n\n"

@@ -314,3 +314,70 @@ class YouTubeStats:
         except Exception as e:
             print(f"Ошибка при получении статистики видео за сегодня: {e}")
             return {'uploaded': 0, 'scheduled': 0, 'total': 0}
+
+    def get_detailed_channel_stats(self):
+        """Получает детальную статистику по каждому каналу за сегодня и вчера"""
+        try:
+            detailed_stats = {
+                'today': [],
+                'yesterday': []
+            }
+            
+            end_date = datetime.utcnow()
+            
+            # Сегодня
+            today_start = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            # Вчера
+            yesterday_start = (end_date - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            yesterday_end = yesterday_start + timedelta(days=1)
+            
+            for channel in config.CHANNELS:
+                channel_id = channel['channel_id']
+                channel_name = channel['name']
+                channel_username = channel.get('username', '')
+                
+                # Получаем видео за сегодня
+                today_videos = self.get_videos_for_period(channel_id, today_start, end_date)
+                today_views = sum(video['views'] for video in today_videos)
+                today_likes = sum(video['likes'] for video in today_videos)
+                today_comments = sum(video['comments'] for video in today_videos)
+                
+                # Получаем видео за вчера
+                yesterday_videos = self.get_videos_for_period(channel_id, yesterday_start, yesterday_end)
+                yesterday_views = sum(video['views'] for video in yesterday_videos)
+                yesterday_likes = sum(video['likes'] for video in yesterday_videos)
+                yesterday_comments = sum(video['comments'] for video in yesterday_videos)
+                
+                # Формируем гиперссылку на канал
+                if channel_username:
+                    channel_link = f"https://www.youtube.com/{channel_username}"
+                    channel_display = f"[{channel_name}]({channel_link})"
+                else:
+                    channel_display = channel_name
+                
+                # Добавляем статистику за сегодня
+                if today_views > 0 or today_likes > 0 or today_comments > 0:
+                    detailed_stats['today'].append({
+                        'channel_name': channel_name,
+                        'channel_display': channel_display,
+                        'views': today_views,
+                        'likes': today_likes,
+                        'comments': today_comments
+                    })
+                
+                # Добавляем статистику за вчера
+                if yesterday_views > 0 or yesterday_likes > 0 or yesterday_comments > 0:
+                    detailed_stats['yesterday'].append({
+                        'channel_name': channel_name,
+                        'channel_display': channel_display,
+                        'views': yesterday_views,
+                        'likes': yesterday_likes,
+                        'comments': yesterday_comments
+                    })
+            
+            return detailed_stats
+            
+        except Exception as e:
+            print(f"Ошибка при получении детальной статистики по каналам: {e}")
+            return {'today': [], 'yesterday': []}
