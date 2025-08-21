@@ -356,25 +356,23 @@ class YouTubeStats:
                 else:
                     channel_display = channel_name
                 
-                # Добавляем статистику за сегодня
-                if today_views > 0 or today_likes > 0 or today_comments > 0:
-                    detailed_stats['today'].append({
-                        'channel_name': channel_name,
-                        'channel_display': channel_display,
-                        'views': today_views,
-                        'likes': today_likes,
-                        'comments': today_comments
-                    })
+                # Добавляем статистику за сегодня (всегда показываем канал)
+                detailed_stats['today'].append({
+                    'channel_name': channel_name,
+                    'channel_display': channel_display,
+                    'views': today_views,
+                    'likes': today_likes,
+                    'comments': today_comments
+                })
                 
-                # Добавляем статистику за вчера
-                if yesterday_views > 0 or yesterday_likes > 0 or yesterday_comments > 0:
-                    detailed_stats['yesterday'].append({
-                        'channel_name': channel_name,
-                        'channel_display': channel_display,
-                        'views': yesterday_views,
-                        'likes': yesterday_likes,
-                        'comments': yesterday_comments
-                    })
+                # Добавляем статистику за вчера (всегда показываем канал)
+                detailed_stats['yesterday'].append({
+                    'channel_name': channel_name,
+                    'channel_display': channel_display,
+                    'views': yesterday_views,
+                    'likes': yesterday_likes,
+                    'comments': yesterday_comments
+                })
             
             return detailed_stats
             
