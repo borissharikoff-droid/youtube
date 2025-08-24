@@ -51,7 +51,6 @@ class YouTubeStats:
             self._set_cached_data(cache_key, result)
             return result
         except Exception as e:
-            print(f"Ошибка при получении статистики канала: {e}")
             return None
     
     def get_videos_for_period(self, channel_id, start_date, end_date):
@@ -75,10 +74,7 @@ class YouTubeStats:
             
             video_ids = [item['id']['videoId'] for item in videos_response['items']]
             
-            print(f"Найдено {len(video_ids)} видео для канала {channel_id}")
-            
             if not video_ids:
-                print(f"Нет видео для канала {channel_id}")
                 self._set_cached_data(cache_key, [])
                 return []
             
@@ -126,7 +122,7 @@ class YouTubeStats:
                                 'text': clean_text[:60] + "..." if len(clean_text) > 60 else clean_text
                             })
                     except Exception as e:
-                        print(f"Ошибка при получении комментариев к видео {video['id']}: {e}")
+                        pass  # Игнорируем ошибки при получении комментариев
                 
                 videos.append({
                     'title': video['snippet']['title'],
@@ -142,7 +138,6 @@ class YouTubeStats:
             self._set_cached_data(cache_key, videos)
             return videos
         except Exception as e:
-            print(f"Ошибка при получении видео: {e}")
             return []
     
     def get_recent_videos(self, channel_id, days=1):
@@ -203,14 +198,9 @@ class YouTubeStats:
                 channel_id = channel['channel_id']
                 channel_name = channel['name']
                 
-                print(f"Обрабатываем канал: {channel_name}")
-                
                 channel_stats = self.get_channel_stats(channel_id)
                 if not channel_stats:
-                    print(f"Не удалось получить статистику канала {channel_name}")
                     continue
-                
-                print(f"Канал {channel_name} найден, подписчиков: {channel_stats['subscribers']:,}")
                 
                 # Получаем видео за разные периоды
                 end_date = datetime.utcnow()
@@ -274,7 +264,6 @@ class YouTubeStats:
             return summary
             
         except Exception as e:
-            print(f"Ошибка при получении сводной статистики: {e}")
             return {
                 'today': {'views': 0, 'likes': 0, 'comments': 0},
                 'yesterday': {'views': 0, 'likes': 0, 'comments': 0},
@@ -320,7 +309,6 @@ class YouTubeStats:
             }
             
         except Exception as e:
-            print(f"Ошибка при получении статистики видео за сегодня: {e}")
             return {'uploaded': 0, 'scheduled': 0, 'total': 0}
 
     def get_detailed_channel_stats(self):
@@ -385,5 +373,4 @@ class YouTubeStats:
             return detailed_stats
             
         except Exception as e:
-            print(f"Ошибка при получении детальной статистики по каналам: {e}")
             return {'today': [], 'yesterday': []}

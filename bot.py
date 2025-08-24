@@ -4,7 +4,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
 import config
 from youtube_stats import YouTubeStats
-from trends_analyzer import TrendsAnalyzer
+
 from request_tracker import RequestTracker
 
 # Настройка логирования
@@ -39,7 +39,6 @@ def get_error_message(e):
 class YouTubeStatsBot:
     def __init__(self):
         self.youtube_stats = YouTubeStats()
-        self.trends_analyzer = TrendsAnalyzer()
         self.request_tracker = RequestTracker()
     
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -298,8 +297,6 @@ class YouTubeStatsBot:
                 await self.send_period_stats(query, 7, "неделю")
             elif query.data == "stats_all_time":
                 await self.send_period_stats(query, 0, "все время")
-            elif query.data == "trends_analysis":
-                await self.show_trends_analysis(query)
             elif query.data == "back_to_main":
                 await self.show_main_menu(query)
         except Exception as e:
@@ -476,175 +473,6 @@ class YouTubeStatsBot:
             logger.error(f"Ошибка при получении сводной статистики: {e}")
             await query.edit_message_text(get_error_message(e))
     
-    async def show_trends_analysis(self, query):
-        """Показывает анализ трендов YouTube"""
-        user_id = query.from_user.id
-        
-        # Проверяем лимиты запросов
-        can_request, message_text = self.request_tracker.can_make_request(user_id)
-        if not can_request:
-            await query.edit_message_text(f"⚠️ {message_text}")
-            return
-        
-        await query.edit_message_text("🔍 Анализирую тренды YouTube...")
-        
-        try:
-            # Получаем анализ трендов
-            trends_data = self.trends_analyzer.analyze_trends()
-            
-            # Записываем запрос
-            self.request_tracker.record_request(user_id, "trends_analysis")
-            
-            if not trends_data:
-                await query.edit_message_text("Не удалось получить данные о трендах.")
-                return
-            
-            # Формируем сообщение с анализом
-            message = "🔍 **АНАЛИЗ ТРЕНДОВ YOUTUBE**\n\n"
-            
-            # Топ категории
-            message += "📊 **Популярные категории:**\n"
-            for i, (category, stats) in enumerate(trends_data['recommendations']['top_categories'][:5], 1):
-                avg_views = stats['total_views'] // stats['count'] if stats['count'] > 0 else 0
-                message += f"{i}. {category}: {stats['count']} видео, {avg_views:,} просмотров в среднем\n"
-            
-            message += "\n"
-            
-            # Идеи для видео
-            message += "💡 **Идеи для видео:**\n"
-            for i, idea in enumerate(trends_data['recommendations']['video_ideas'][:5], 1):
-                message += f"{i}. {idea}\n"
-            
-            message += "\n"
-            
-            # Популярные хештеги
-            message += "🏷️ **Популярные хештеги:**\n"
-            hashtags_text = ", ".join(trends_data['recommendations']['hashtag_suggestions'][:10])
-            message += f"{hashtags_text}\n\n"
-            
-            # Время публикации
-            message += "⏰ **Лучшее время публикации:**\n"
-            for tip in trends_data['recommendations']['timing_tips'][:3]:
-                message += f"• {tip}\n"
-            
-            message += "\n"
-            
-            # Советы по формату
-            message += "📹 **Советы по формату:**\n"
-            for tip in trends_data['recommendations']['format_tips']:
-                message += f"• {tip}\n"
-            
-            message += "\n"
-            
-            # Топ виральные видео
-            message += "🔥 **Топ виральные видео:**\n"
-            for i, video in enumerate(trends_data['trending_videos'][:5], 1):
-                title = video['title'][:50] + "..." if len(video['title']) > 50 else video['title']
-                message += f"{i}. [{title}]({video['video_url']})\n"
-                message += f"   👁️ {video['views']:,} | 👍 {video['likes']:,} | {video['category_name']}\n\n"
-            
-            # Добавляем кнопку домой
-            keyboard = [[InlineKeyboardButton("🏠 Домой", callback_data="back_to_main")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            # Разбиваем сообщение на части, если оно слишком длинное
-            if len(message) > 4096:
-                first_part = message[:4096]
-                await query.edit_message_text(first_part, reply_markup=reply_markup, parse_mode='Markdown')
-                
-                # Отправляем остальные части как новые сообщения
-                remaining_parts = [message[i:i+4096] for i in range(4096, len(message), 4096)]
-                for part in remaining_parts:
-                    await query.message.reply_text(part, parse_mode='Markdown', disable_web_page_preview=True)
-            else:
-                await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-            
-        except Exception as e:
-            logger.error(f"Ошибка при анализе трендов: {e}")
-            await query.edit_message_text(get_error_message(e))
-    
-    async def show_trends_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик команды /trends"""
-        user_id = update.effective_user.id
-        
-        # Проверяем лимиты запросов
-        can_request, message_text = self.request_tracker.can_make_request(user_id)
-        if not can_request:
-            await update.message.reply_text(f"⚠️ {message_text}")
-            return
-        
-        await update.message.reply_text("🔍 Анализирую тренды YouTube...")
-        
-        try:
-            # Получаем анализ трендов
-            trends_data = self.trends_analyzer.analyze_trends()
-            
-            # Записываем запрос
-            self.request_tracker.record_request(user_id, "trends_command")
-            
-            if not trends_data:
-                await update.message.reply_text("Не удалось получить данные о трендах.")
-                return
-            
-            # Формируем сообщение с анализом
-            message = "🔍 **АНАЛИЗ ТРЕНДОВ YOUTUBE**\n\n"
-            
-            # Топ категории
-            message += "📊 **Популярные категории:**\n"
-            for i, (category, stats) in enumerate(trends_data['recommendations']['top_categories'][:5], 1):
-                avg_views = stats['total_views'] // stats['count'] if stats['count'] > 0 else 0
-                message += f"{i}. {category}: {stats['count']} видео, {avg_views:,} просмотров в среднем\n"
-            
-            message += "\n"
-            
-            # Идеи для видео
-            message += "💡 **Идеи для видео:**\n"
-            for i, idea in enumerate(trends_data['recommendations']['video_ideas'][:5], 1):
-                message += f"{i}. {idea}\n"
-            
-            message += "\n"
-            
-            # Популярные хештеги
-            message += "🏷️ **Популярные хештеги:**\n"
-            hashtags_text = ", ".join(trends_data['recommendations']['hashtag_suggestions'][:10])
-            message += f"{hashtags_text}\n\n"
-            
-            # Время публикации
-            message += "⏰ **Лучшее время публикации:**\n"
-            for tip in trends_data['recommendations']['timing_tips'][:3]:
-                message += f"• {tip}\n"
-            
-            message += "\n"
-            
-            # Советы по формату
-            message += "📹 **Советы по формату:**\n"
-            for tip in trends_data['recommendations']['format_tips']:
-                message += f"• {tip}\n"
-            
-            message += "\n"
-            
-            # Топ виральные видео
-            message += "🔥 **Топ виральные видео:**\n"
-            for i, video in enumerate(trends_data['trending_videos'][:5], 1):
-                title = video['title'][:50] + "..." if len(video['title']) > 50 else video['title']
-                message += f"{i}. [{title}]({video['video_url']})\n"
-                message += f"   👁️ {video['views']:,} | 👍 {video['likes']:,} | {video['category_name']}\n\n"
-            
-            # Разбиваем сообщение на части, если оно слишком длинное
-            if len(message) > 4096:
-                parts = [message[i:i+4096] for i in range(0, len(message), 4096)]
-                for i, part in enumerate(parts):
-                    if i == 0:
-                        await update.message.reply_text(part, parse_mode='Markdown', disable_web_page_preview=True)
-                    else:
-                        await update.message.reply_text(part, parse_mode='Markdown', disable_web_page_preview=True)
-            else:
-                await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
-            
-        except Exception as e:
-            logger.error(f"Ошибка при анализе трендов: {e}")
-            await update.message.reply_text(get_error_message(e))
-    
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /help"""
         
@@ -654,7 +482,7 @@ class YouTubeStatsBot:
 /start - Главное меню со статистикой
 /stats - Получить детальную статистику за сегодня
 /day - Сводная статистика за сутки
-/trends - Анализ трендов YouTube
+
 /quota - Показать статистику запросов
 /help - Показать это сообщение
 
@@ -664,7 +492,6 @@ class YouTubeStatsBot:
 • Комментарии за разные периоды
 • Количество видео за период
 • Средние показатели на видео
-• Анализ трендов YouTube
 
 ⚠️ Лимиты:
 • 15 запросов в день на пользователя
@@ -709,7 +536,7 @@ def main():
         application.add_handler(CommandHandler("start", bot.start))
         application.add_handler(CommandHandler("stats", bot.stats))
         application.add_handler(CommandHandler("day", bot.day_stats))
-        application.add_handler(CommandHandler("trends", bot.show_trends_command))
+
         application.add_handler(CommandHandler("quota", bot.quota_command))
         application.add_handler(CommandHandler("help", bot.help_command))
         
