@@ -35,7 +35,7 @@ CHANNELS = [
     {
         "name": "Simpson Fan",
         "channel_id": "UCNwyOnZ1VfS-5lBd9_fXf5A",
-        "username": "@SimpsonFanNumberOne"
+        "username": "@simpsonfannumberone"
     },
     {
         "name": "Balkin Fankouv",
@@ -56,6 +56,11 @@ CHANNELS = [
         "name": "NERSYANE",
         "channel_id": "UCVxRfn6OfDRk1ddym4KejWQ",
         "username": "@Ners1syane"
+    },
+    {
+        "name": "Viral Mode_On",
+        "channel_id": "UCn_H280ZWuIBRadhItgQ8nQ",
+        "username": "@viralmode_1"
     }
     # Добавьте другие каналы по аналогии
 ]

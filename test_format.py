@@ -24,39 +24,29 @@ def test_new_format():
         
         # Формируем сообщение в новом формате
         message = "📊 **Статистика по отслеживаемым каналам:**\n\n"
-        message += f"За сегодня: {summary_stats['today']['views']:,}👁️ {summary_stats['today']['likes']:,}👍 {summary_stats['today']['comments']:,}💬\n"
+        message += f"За сегодня: {summary_stats['today']['views']:,}👁️ | {summary_stats['today']['likes']:,}👍 | {summary_stats['today']['comments']:,}💬\n"
         
         # Добавляем детальную статистику по каналам за сегодня
         for channel_data in detailed_stats['today']:
-            message += f"• {channel_data['channel_display']}: {channel_data['views']:,} просмотров, {channel_data['likes']:,} лайков, {channel_data['comments']:,} комментов\n"
+            message += f"• {channel_data['channel_name']}: {channel_data['views']:,}👁️ | {channel_data['likes']:,}👍 | {channel_data['comments']:,}💬\n"
         
-        message += f"\nЗа вчера: {summary_stats['yesterday']['views']:,}👁️ {summary_stats['yesterday']['likes']:,}👍 {summary_stats['yesterday']['comments']:,}💬\n"
+        message += f"\nЗа вчера: {summary_stats['yesterday']['views']:,}👁️ | {summary_stats['yesterday']['likes']:,}👍 | {summary_stats['yesterday']['comments']:,}💬\n"
         
         # Добавляем детальную статистику по каналам за вчера
         for channel_data in detailed_stats['yesterday']:
-            message += f"• {channel_data['channel_display']}: {channel_data['views']:,} просмотров, {channel_data['likes']:,} лайков, {channel_data['comments']:,} комментов\n"
+            message += f"• {channel_data['channel_name']}: {channel_data['views']:,}👁️ | {channel_data['likes']:,}👍 | {channel_data['comments']:,}💬\n"
         
-        message += f"\nЗа неделю: {summary_stats['week']['views']:,}👁️ {summary_stats['week']['likes']:,}👍 {summary_stats['week']['comments']:,}💬\n"
-        message += f"За все время: {summary_stats['all_time']['views']:,}👁️ {summary_stats['all_time']['likes']:,}👍 {summary_stats['all_time']['comments']:,}💬\n\n"
+        message += f"\nЗа неделю: {summary_stats['week']['views']:,}👁️ | {summary_stats['week']['likes']:,}👍 | {summary_stats['week']['comments']:,}💬\n"
+        message += f"За все время: {summary_stats['all_time']['views']:,}👁️ | {summary_stats['all_time']['likes']:,}👍 | {summary_stats['all_time']['comments']:,}💬\n\n"
         message += f"📹 Видео за сегодня: {today_video_stats['uploaded']} загружено, {today_video_stats['scheduled']} в отложке\n"
         message += f"Каналов отслеживается: {len(config.CHANNELS)}\n\n"
         
         # Добавляем информацию о запросах (тестовые данные)
-        message += f"📈 **Запросов: 5/15**\n"
-        message += f"API квота: 1,234/10,000\n\n"
+        message += f"📈 **Запросов: 2/15**\n"
         
-        # Добавляем список каналов с гиперссылками
-        channel_links = []
-        for channel in config.CHANNELS:
-            channel_name = channel['name']
-            channel_username = channel.get('username', '')
-            if channel_username:
-                channel_link = f"https://www.youtube.com/{channel_username}"
-                channel_links.append(f"[{channel_name}]({channel_link})")
-            else:
-                channel_links.append(channel_name)
-        
-        message += f"({', '.join(channel_links)})"
+        # Добавляем список каналов
+        channel_names = [channel['name'] for channel in config.CHANNELS]
+        message += f"({', '.join(channel_names)})"
         
         print(message)
         print("\n" + "="*50)
