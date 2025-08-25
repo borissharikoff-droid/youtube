@@ -86,9 +86,18 @@ class YouTubeStatsBot:
             # Добавляем информацию о запросах
             message += f"📈 **Запросов: {user_stats['requests_today']}/{user_stats['requests_limit']}**\n"
             
-            # Добавляем список каналов
-            channel_names = [channel['name'] for channel in config.CHANNELS]
-            message += f"({', '.join(channel_names)})"
+            # Добавляем список каналов с гиперссылками
+            channel_links = []
+            for channel in config.CHANNELS:
+                channel_name = channel['name']
+                channel_username = channel.get('username', '')
+                if channel_username:
+                    channel_link = f"https://www.youtube.com/{channel_username}"
+                    channel_links.append(f"[{channel_name}]({channel_link})")
+                else:
+                    channel_links.append(channel_name)
+            
+            message += f"({', '.join(channel_links)})"
             
             # Создаем кнопки
             keyboard = [
@@ -183,6 +192,20 @@ class YouTubeStatsBot:
                 
                 message += "\n" + "─" * 30 + "\n\n"
             
+            # Добавляем список каналов с гиперссылками
+            message += "📺 **Отслеживаемые каналы:**\n"
+            channel_links = []
+            for channel in config.CHANNELS:
+                channel_name = channel['name']
+                channel_username = channel.get('username', '')
+                if channel_username:
+                    channel_link = f"https://www.youtube.com/{channel_username}"
+                    channel_links.append(f"[{channel_name}]({channel_link})")
+                else:
+                    channel_links.append(channel_name)
+            
+            message += f"({', '.join(channel_links)})"
+            
             # Разбиваем сообщение на части, если оно слишком длинное
             if len(message) > 4096:
                 parts = [message[i:i+4096] for i in range(0, len(message), 4096)]
@@ -275,6 +298,20 @@ class YouTubeStatsBot:
                 message += f"👁️ Просмотры: {avg_views:.0f}\n"
                 message += f"👍 Лайки: {avg_likes:.0f}\n"
                 message += f"💬 Комментарии: {avg_comments:.0f}\n"
+            
+            # Добавляем список каналов с гиперссылками
+            message += f"\n📺 **Отслеживаемые каналы:**\n"
+            channel_links = []
+            for channel in config.CHANNELS:
+                channel_name = channel['name']
+                channel_username = channel.get('username', '')
+                if channel_username:
+                    channel_link = f"https://www.youtube.com/{channel_username}"
+                    channel_links.append(f"[{channel_name}]({channel_link})")
+                else:
+                    channel_links.append(channel_name)
+            
+            message += f"({', '.join(channel_links)})"
             
             await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
                 
@@ -373,6 +410,20 @@ class YouTubeStatsBot:
                     message += "📹 Видео не найдены\n"
                 
                 message += "\n" + "─" * 30 + "\n\n"
+            
+            # Добавляем список каналов с гиперссылками
+            message += "📺 **Отслеживаемые каналы:**\n"
+            channel_links = []
+            for channel in config.CHANNELS:
+                channel_name = channel['name']
+                channel_username = channel.get('username', '')
+                if channel_username:
+                    channel_link = f"https://www.youtube.com/{channel_username}"
+                    channel_links.append(f"[{channel_name}]({channel_link})")
+                else:
+                    channel_links.append(channel_name)
+            
+            message += f"({', '.join(channel_links)})"
             
             # Разбиваем сообщение на части, если оно слишком длинное
             if len(message) > 4096:
