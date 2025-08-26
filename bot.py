@@ -3,7 +3,7 @@ import sys
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
 import config
-from youtube_stats import YouTubeStats
+from youtube_stats_optimized import OptimizedYouTubeStats
 
 from request_tracker import RequestTracker
 
@@ -38,7 +38,7 @@ def get_error_message(e):
 
 class YouTubeStatsBot:
     def __init__(self):
-        self.youtube_stats = YouTubeStats()
+        self.youtube_stats = OptimizedYouTubeStats()
         self.request_tracker = RequestTracker()
     
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
