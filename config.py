@@ -30,7 +30,7 @@ CHANNELS = [
     {
         "name": "boom_shorts",
         "channel_id": "UCOzhymYx59BNUfv_sFcPjtA",
-        "username": "@boom_shorts"
+        "username": "@boom_shorts-s6u"
     },
     {
         "name": "Simpson Fan",

@@ -237,7 +237,6 @@ class YouTubeStats:
             
             for channel_name, data in all_channels_data.items():
                 # Сегодня
-                # Сегодня
                 for video in data['today_videos']:
                     summary['today']['views'] += video['views']
                     summary['today']['likes'] += video['likes']
