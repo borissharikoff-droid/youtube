@@ -2,7 +2,12 @@ import asyncio
 import aiohttp
 from googleapiclient.discovery import build
 from datetime import datetime, timedelta
-import config
+import os
+# Выбираем конфигурацию в зависимости от среды
+if os.getenv("RAILWAY_STATIC_URL"):
+    import config_railway as config
+else:
+    import config
 import time
 import json
 import os
