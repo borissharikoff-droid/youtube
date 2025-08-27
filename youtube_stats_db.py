@@ -501,7 +501,9 @@ class DatabaseYouTubeStats(OptimizedYouTubeStats):
                 today_stats = super().get_stats_by_period(1)  # Сегодня
                 yesterday_stats = super().get_stats_by_period(2)  # Вчера  
                 week_stats = super().get_stats_by_period(7)  # Неделя
-                all_time_stats = super().get_stats_by_period(365)  # Все время
+                
+                # Для "За все время" используем данные из БД
+                all_time_stats = self._get_all_time_stats_from_db()
                 
                 # Агрегируем данные
                 def aggregate_stats(stats_list):
@@ -514,7 +516,7 @@ class DatabaseYouTubeStats(OptimizedYouTubeStats):
                     'today': aggregate_stats(today_stats),
                     'yesterday': aggregate_stats(yesterday_stats),
                     'week': aggregate_stats(week_stats),
-                    'all_time': aggregate_stats(all_time_stats)
+                    'all_time': all_time_stats  # Используем данные из БД напрямую
                 }
                 
                 # Кэшируем результат на 5 минут
@@ -523,14 +525,42 @@ class DatabaseYouTubeStats(OptimizedYouTubeStats):
                 
             except Exception as e:
                 logger.warning(f"Failed to get summary stats via parent methods: {e}")
-                # Если не получилось, возвращаем базовую структуру
+                # Если не получилось, возвращаем базовую структуру с данными из БД для all_time
                 result = self._get_default_summary()
+                try:
+                    result['all_time'] = self._get_all_time_stats_from_db()
+                except:
+                    pass
                 self._set_cached_data(cache_key, result, 'summary')
                 return result
             
         except Exception as e:
             logger.error(f"Error in _get_summary_stats_sync: {e}")
             return self._get_default_summary()
+    
+    def _get_all_time_stats_from_db(self):
+        """Получает статистику за все время из БД"""
+        try:
+            with self.db_manager.get_connection() as conn:
+                cursor = conn.execute('''
+                    SELECT 
+                        COALESCE(SUM(vs.view_count), 0) as total_views,
+                        COALESCE(SUM(vs.like_count), 0) as total_likes,
+                        COALESCE(SUM(vs.comment_count), 0) as total_comments
+                    FROM video_stats vs
+                    JOIN videos v ON vs.video_id = v.video_id
+                    JOIN channels c ON v.channel_id = c.channel_id
+                ''')
+                
+                row = cursor.fetchone()
+                return {
+                    'views': int(row['total_views']),
+                    'likes': int(row['total_likes']),
+                    'comments': int(row['total_comments'])
+                }
+        except Exception as e:
+            logger.error(f"Error getting all-time stats from DB: {e}")
+            return {'views': 0, 'likes': 0, 'comments': 0}
     
     def _get_detailed_stats_sync(self):
         """Синхронное получение detailed статистики"""
