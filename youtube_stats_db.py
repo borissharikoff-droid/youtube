@@ -389,6 +389,69 @@ class DatabaseYouTubeStats(OptimizedYouTubeStats):
         except Exception as e:
             logger.error(f"Error during migration: {e}")
     
+    # === Методы совместимости с ботом ===
+    
+    def get_summary_stats(self):
+        """Совместимость с оригинальным API"""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(self.get_optimized_summary_stats())
+                return result.get('summary', {'today': {'views': 0, 'likes': 0, 'comments': 0}})
+            finally:
+                loop.close()
+        except Exception as e:
+            logger.error(f"Error in get_summary_stats: {e}")
+            return {'today': {'views': 0, 'likes': 0, 'comments': 0}}
+    
+    def get_detailed_channel_stats(self):
+        """Совместимость с оригинальным API"""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(self.get_optimized_summary_stats())
+                return result.get('detailed', {'today': [], 'week': []})
+            finally:
+                loop.close()
+        except Exception as e:
+            logger.error(f"Error in get_detailed_channel_stats: {e}")
+            return {'today': [], 'week': []}
+    
+    def get_daily_stats(self):
+        """Получает статистику за день по всем каналам"""
+        try:
+            return self.get_stats_by_period(1)
+        except Exception as e:
+            logger.error(f"Error in get_daily_stats: {e}")
+            return []
+    
+    def get_stats_by_period(self, days):
+        """Получает статистику за указанный период по всем каналам"""
+        try:
+            return super().get_stats_by_period(days)
+        except Exception as e:
+            logger.error(f"Error in get_stats_by_period: {e}")
+            return []
+    
+    def get_today_video_stats(self):
+        """Получает статистику по видео за сегодня"""
+        try:
+            return super().get_today_video_stats()
+        except Exception as e:
+            logger.error(f"Error in get_today_video_stats: {e}")
+            return {'uploaded': 0, 'scheduled': 0}
+    
+    def get_channel_stats(self, channel_id: str) -> Optional[Dict]:
+        """Получает статистику одного канала (для совместимости)"""
+        try:
+            result = self.get_batch_channel_stats([channel_id])
+            return result.get(channel_id)
+        except Exception as e:
+            logger.error(f"Error in get_channel_stats for {channel_id}: {e}")
+            return None
+    
     def close(self):
         """Закрывает соединения с БД"""
         # Выполняем финальную очистку
