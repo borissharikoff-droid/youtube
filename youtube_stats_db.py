@@ -394,30 +394,46 @@ class DatabaseYouTubeStats(OptimizedYouTubeStats):
     def get_summary_stats(self):
         """Совместимость с оригинальным API"""
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            # Проверяем, запущен ли event loop
             try:
-                result = loop.run_until_complete(self.get_optimized_summary_stats())
-                return result.get('summary', {'today': {'views': 0, 'likes': 0, 'comments': 0}})
-            finally:
-                loop.close()
+                loop = asyncio.get_running_loop()
+                # Если loop уже работает, используем синхронный подход
+                logger.warning("Event loop already running, using synchronous approach for get_summary_stats")
+                return self._get_summary_stats_sync()
+            except RuntimeError:
+                # Event loop не запущен, можем создать новый
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(self.get_optimized_summary_stats())
+                    return result.get('summary', self._get_default_summary())
+                finally:
+                    loop.close()
         except Exception as e:
             logger.error(f"Error in get_summary_stats: {e}")
-            return {'today': {'views': 0, 'likes': 0, 'comments': 0}}
+            return self._get_default_summary()
     
     def get_detailed_channel_stats(self):
         """Совместимость с оригинальным API"""
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            # Проверяем, запущен ли event loop
             try:
-                result = loop.run_until_complete(self.get_optimized_summary_stats())
-                return result.get('detailed', {'today': [], 'week': []})
-            finally:
-                loop.close()
+                loop = asyncio.get_running_loop()
+                # Если loop уже работает, используем синхронный подход
+                logger.warning("Event loop already running, using synchronous approach for get_detailed_channel_stats")
+                return self._get_detailed_stats_sync()
+            except RuntimeError:
+                # Event loop не запущен, можем создать новый
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(self.get_optimized_summary_stats())
+                    return result.get('detailed', self._get_default_detailed())
+                finally:
+                    loop.close()
         except Exception as e:
             logger.error(f"Error in get_detailed_channel_stats: {e}")
-            return {'today': [], 'week': []}
+            return self._get_default_detailed()
     
     def get_daily_stats(self):
         """Получает статистику за день по всем каналам"""
@@ -451,6 +467,106 @@ class DatabaseYouTubeStats(OptimizedYouTubeStats):
         except Exception as e:
             logger.error(f"Error in get_channel_stats for {channel_id}: {e}")
             return None
+    
+    # === Вспомогательные синхронные методы ===
+    
+    def _get_default_summary(self):
+        """Возвращает пустую структуру summary"""
+        return {
+            'today': {'views': 0, 'likes': 0, 'comments': 0},
+            'yesterday': {'views': 0, 'likes': 0, 'comments': 0},
+            'week': {'views': 0, 'likes': 0, 'comments': 0},
+            'all_time': {'views': 0, 'likes': 0, 'comments': 0}
+        }
+    
+    def _get_default_detailed(self):
+        """Возвращает пустую структуру detailed"""
+        return {
+            'today': [],
+            'yesterday': [],
+            'week': []
+        }
+    
+    def _get_summary_stats_sync(self):
+        """Синхронное получение summary статистики"""
+        try:
+            # Получаем данные из кэша БД
+            cache_key = "summary_stats_sync"
+            cached_data = self._get_cached_data(cache_key, 'summary')
+            if cached_data:
+                return cached_data
+                
+            # Пытаемся получить данные через родительские синхронные методы
+            try:
+                today_stats = super().get_stats_by_period(1)  # Сегодня
+                yesterday_stats = super().get_stats_by_period(2)  # Вчера  
+                week_stats = super().get_stats_by_period(7)  # Неделя
+                all_time_stats = super().get_stats_by_period(365)  # Все время
+                
+                # Агрегируем данные
+                def aggregate_stats(stats_list):
+                    total_views = sum(item.get('daily_views', 0) for item in stats_list)
+                    total_likes = sum(item.get('daily_likes', 0) for item in stats_list)
+                    total_comments = sum(item.get('daily_comments', 0) for item in stats_list)
+                    return {'views': total_views, 'likes': total_likes, 'comments': total_comments}
+                
+                result = {
+                    'today': aggregate_stats(today_stats),
+                    'yesterday': aggregate_stats(yesterday_stats),
+                    'week': aggregate_stats(week_stats),
+                    'all_time': aggregate_stats(all_time_stats)
+                }
+                
+                # Кэшируем результат на 5 минут
+                self._set_cached_data(cache_key, result, 'summary')
+                return result
+                
+            except Exception as e:
+                logger.warning(f"Failed to get summary stats via parent methods: {e}")
+                # Если не получилось, возвращаем базовую структуру
+                result = self._get_default_summary()
+                self._set_cached_data(cache_key, result, 'summary')
+                return result
+            
+        except Exception as e:
+            logger.error(f"Error in _get_summary_stats_sync: {e}")
+            return self._get_default_summary()
+    
+    def _get_detailed_stats_sync(self):
+        """Синхронное получение detailed статистики"""
+        try:
+            # Получаем данные из кэша БД
+            cache_key = "detailed_stats_sync"
+            cached_data = self._get_cached_data(cache_key, 'detailed')
+            if cached_data:
+                return cached_data
+                
+            # Пытаемся получить данные через родительские синхронные методы
+            try:
+                today_stats = super().get_stats_by_period(1)  # Сегодня
+                yesterday_stats = super().get_stats_by_period(2)  # Вчера  
+                week_stats = super().get_stats_by_period(7)  # Неделя
+                
+                result = {
+                    'today': today_stats,
+                    'yesterday': yesterday_stats,
+                    'week': week_stats
+                }
+                
+                # Кэшируем результат на 5 минут
+                self._set_cached_data(cache_key, result, 'detailed')
+                return result
+                
+            except Exception as e:
+                logger.warning(f"Failed to get detailed stats via parent methods: {e}")
+                # Если не получилось, возвращаем базовую структуру
+                result = self._get_default_detailed()
+                self._set_cached_data(cache_key, result, 'detailed')
+                return result
+            
+        except Exception as e:
+            logger.error(f"Error in _get_detailed_stats_sync: {e}")
+            return self._get_default_detailed()
     
     def close(self):
         """Закрывает соединения с БД"""

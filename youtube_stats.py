@@ -346,7 +346,7 @@ class YouTubeStats:
                 
                 # Формируем гиперссылку на канал
                 if channel_username:
-                    channel_link = f"https://www.youtube.com/{channel_username}"
+                    channel_link = f"whttps://www.youtube.com/{channel_username}"
                     channel_display = f"[{channel_name}]({channel_link})"
                 else:
                     channel_display = channel_name
