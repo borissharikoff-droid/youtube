@@ -3,11 +3,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Telegram Bot Token - из переменной окружения Railway с fallback
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8208943672:AAGWCDFE7xNugXdsqilvnmojsY_pKMvW3wA")
+# Telegram Bot Token - из переменной окружения Railway
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+if not TELEGRAM_TOKEN:
+    raise ValueError("TELEGRAM_TOKEN environment variable is required for Railway deployment")
 
-# YouTube API Key - из переменной окружения Railway с fallback
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "AIzaSyDBi9yLcdpYLR8jHG4FCG7Bq6mb7H1BWxs")
+# YouTube API Key - из переменной окружения Railway
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY") 
+if not YOUTUBE_API_KEY:
+    raise ValueError("YOUTUBE_API_KEY environment variable is required for Railway deployment")
 
 # Admin ID - из переменной окружения Railway
 ADMIN_ID = int(os.getenv("ADMIN_ID", "250800600"))
@@ -71,5 +75,4 @@ CHANNELS = [
         "channel_id": "UCn_H280ZWuIBRadhItgQ8nQ",
         "username": "@viralmode_1"
     }
-    # Добавьте другие каналы по аналогии
 ]
