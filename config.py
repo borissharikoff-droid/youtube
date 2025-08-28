@@ -9,7 +9,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8208943672:AAGWCDFE7xNugXdsqilvnmo
 # YouTube API Key
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "AIzaSyDBi9yLcdpYLR8jHG4FCG7Bq6mb7H1BWxs")
 
-# Ваш Telegram ID
+# Admin ID
 ADMIN_ID = int(os.getenv("ADMIN_ID", "250800600"))
 
 # Настройки лимитов API
@@ -25,10 +25,7 @@ API_QUOTA_PER_REQUEST = {
 DAILY_REQUEST_LIMIT = 15  # Максимум запросов в день на пользователя
 REQUEST_COOLDOWN = 120  # 2 минуты между запросами
 
-# Путь к базе данных
-DATABASE_PATH = os.getenv("DATABASE_PATH", "youtube_tracker.db")
-
-# Список каналов для мониторинга
+# МИНИМАЛЬНЫЙ список каналов для экономии API квоты (только 2 канала)
 CHANNELS = [
     {
         "name": "boom_shorts",
@@ -36,29 +33,35 @@ CHANNELS = [
         "username": "@boom_shorts-s6u"
     },
     {
-        "name": "Simpson Fan",
-        "channel_id": "UCNwyOnZ1VfS-5lBd9_fXf5A",
-        "username": "@simpsonfannumberone"
-    },
-    {
-        "name": "Balkin Fankouv",
-        "channel_id": "UC-mxDdjUpDpR8yZqYp6rOjw",
-        "username": "@BalkinFankouv"
-    },
-    {
         "name": "VIDAK",
         "channel_id": "UCiJklQGS9xxChYyhmJZJXHQ",
         "username": "@vidakapp"
-    },
-    {
-        "name": "David Spitzer",
-        "channel_id": "UCpwsCGtcWd5ARq-SuGAqCcA",
-        "username": "@DavidSpitzer-il9kx"
-    },
-    {
-        "name": "Viral Mode_On",
-        "channel_id": "UCn_H280ZWuIBRadhItgQ8nQ",
-        "username": "@viralmode_1"
     }
-    # Добавьте другие каналы по аналогии
 ]
+
+# ОСТАЛЬНЫЕ КАНАЛЫ (добавьте обратно завтра когда квота обновится):
+# {
+#     "name": "Simpson Fan",
+#     "channel_id": "UCNwyOnZ1VfS-5lBd9_fXf5A",
+#     "username": "@simpsonfannumberone"
+# },
+# {
+#     "name": "Balkin Fankouv",
+#     "channel_id": "UC-mxDdjUpDpR8yZqYp6rOjw",
+#     "username": "@BalkinFankouv"
+# },
+# {
+#     "name": "David Spitzer",
+#     "channel_id": "UCpwsCGtcWd5ARq-SuGAqCcA",
+#     "username": "@DavidSpitzer-il9kx"
+# },
+# {
+#     "name": "NERSYANE",
+#     "channel_id": "UCVxRfn6OfDRk1ddym4KejWQ",
+#     "username": "@Ners1syane"
+# },
+# {
+#     "name": "Viral Mode_On",
+#     "channel_id": "UCn_H280ZWuIBRadhItgQ8nQ",
+#     "username": "@viralmode_1"
+# }

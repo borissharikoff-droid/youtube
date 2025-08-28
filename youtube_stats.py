@@ -358,17 +358,24 @@ class YouTubeStats:
                 channel_name = channel['name']
                 channel_username = channel.get('username', '')
                 
-                # Получаем видео за сегодня
-                today_videos = self.get_videos_for_period(channel_id, today_start, end_date)
-                today_views = sum(video['views'] for video in today_videos)
-                today_likes = sum(video['likes'] for video in today_videos)
-                today_comments = sum(video['comments'] for video in today_videos)
-                
-                # Получаем видео за вчера
-                yesterday_videos = self.get_videos_for_period(channel_id, yesterday_start, yesterday_end)
-                yesterday_views = sum(video['views'] for video in yesterday_videos)
-                yesterday_likes = sum(video['likes'] for video in yesterday_videos)
-                yesterday_comments = sum(video['comments'] for video in yesterday_videos)
+                try:
+                    # Получаем видео за сегодня
+                    today_videos = self.get_videos_for_period(channel_id, today_start, end_date)
+                    today_views = sum(video.get('views', 0) for video in today_videos)
+                    today_likes = sum(video.get('likes', 0) for video in today_videos)
+                    today_comments = sum(video.get('comments', 0) for video in today_videos)
+                    
+                    # Получаем видео за вчера
+                    yesterday_videos = self.get_videos_for_period(channel_id, yesterday_start, yesterday_end)
+                    yesterday_views = sum(video.get('views', 0) for video in yesterday_videos)
+                    yesterday_likes = sum(video.get('likes', 0) for video in yesterday_videos)
+                    yesterday_comments = sum(video.get('comments', 0) for video in yesterday_videos)
+                    
+                except Exception as e:
+                    logger.error(f"Error getting videos for channel {channel_name}: {e}")
+                    # Устанавливаем нулевые значения при ошибке
+                    today_views = today_likes = today_comments = 0
+                    yesterday_views = yesterday_likes = yesterday_comments = 0
                 
                 # Формируем гиперссылку на канал
                 if channel_username:
@@ -398,6 +405,7 @@ class YouTubeStats:
             return detailed_stats
             
         except Exception as e:
+            logger.error(f"Error in get_detailed_channel_stats: {e}")
             return {'today': [], 'yesterday': []}
 
     def test_api_connection(self):

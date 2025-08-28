@@ -1,1 +1,1 @@
-worker: python bot_railway.py
+worker: python bot.py
