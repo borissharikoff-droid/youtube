@@ -25,7 +25,7 @@ API_QUOTA_PER_REQUEST = {
 DAILY_REQUEST_LIMIT = 15  # Максимум запросов в день на пользователя
 REQUEST_COOLDOWN = 120  # 2 минуты между запросами
 
-# МИНИМАЛЬНЫЙ список каналов для экономии API квоты (только 2 канала)
+# Список каналов для мониторинга (NERSYANE исключен)
 CHANNELS = [
     {
         "name": "boom_shorts",
@@ -33,35 +33,35 @@ CHANNELS = [
         "username": "@boom_shorts-s6u"
     },
     {
+        "name": "Simpson Fan",
+        "channel_id": "UCNwyOnZ1VfS-5lBd9_fXf5A",
+        "username": "@simpsonfannumberone"
+    },
+    {
+        "name": "Balkin Fankouv",
+        "channel_id": "UC-mxDdjUpDpR8yZqYp6rOjw",
+        "username": "@BalkinFankouv"
+    },
+    {
         "name": "VIDAK",
         "channel_id": "UCiJklQGS9xxChYyhmJZJXHQ",
         "username": "@vidakapp"
+    },
+    {
+        "name": "David Spitzer",
+        "channel_id": "UCpwsCGtcWd5ARq-SuGAqCcA",
+        "username": "@DavidSpitzer-il9kx"
+    },
+    {
+        "name": "Viral Mode_On",
+        "channel_id": "UCn_H280ZWuIBRadhItgQ8nQ",
+        "username": "@viralmode_1"
     }
 ]
 
-# ОСТАЛЬНЫЕ КАНАЛЫ (добавьте обратно завтра когда квота обновится):
-# {
-#     "name": "Simpson Fan",
-#     "channel_id": "UCNwyOnZ1VfS-5lBd9_fXf5A",
-#     "username": "@simpsonfannumberone"
-# },
-# {
-#     "name": "Balkin Fankouv",
-#     "channel_id": "UC-mxDdjUpDpR8yZqYp6rOjw",
-#     "username": "@BalkinFankouv"
-# },
-# {
-#     "name": "David Spitzer",
-#     "channel_id": "UCpwsCGtcWd5ARq-SuGAqCcA",
-#     "username": "@DavidSpitzer-il9kx"
-# },
+# ИСКЛЮЧЕННЫЙ КАНАЛ (не отслеживается):
 # {
 #     "name": "NERSYANE",
-#     "channel_id": "UCVxRfn6OfDRk1ddym4KejWQ",
+#     "channel_id": "UCVxRfn6OfDRk1ddym4KejWQ", 
 #     "username": "@Ners1syane"
-# },
-# {
-#     "name": "Viral Mode_On",
-#     "channel_id": "UCn_H280ZWuIBRadhItgQ8nQ",
-#     "username": "@viralmode_1"
 # }
