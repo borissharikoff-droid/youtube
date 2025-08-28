@@ -2,10 +2,19 @@ from googleapiclient.discovery import build
 from datetime import datetime, timedelta
 import config
 import time
+import logging
+
+# Настройка логирования
+logger = logging.getLogger(__name__)
 
 class YouTubeStats:
     def __init__(self):
-        self.youtube = build('youtube', 'v3', developerKey=config.YOUTUBE_API_KEY)
+        try:
+            self.youtube = build('youtube', 'v3', developerKey=config.YOUTUBE_API_KEY)
+            logger.info("YouTube API client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize YouTube API client: {e}")
+            raise
         self._cache = {}
         self._cache_timeout = 1800  # 30 минут кэш для оптимизации
     
@@ -29,12 +38,14 @@ class YouTubeStats:
             return cached
             
         try:
+            logger.info(f"Fetching channel stats for {channel_id}")
             channel_response = self.youtube.channels().list(
                 part='statistics,snippet',
                 id=channel_id
             ).execute()
             
-            if not channel_response['items']:
+            if not channel_response.get('items'):
+                logger.warning(f"No channel found for ID: {channel_id}")
                 return None
             
             channel_info = channel_response['items'][0]
@@ -48,9 +59,11 @@ class YouTubeStats:
                 'total_videos': int(stats.get('videoCount', 0))
             }
             
+            logger.info(f"Successfully fetched stats for channel: {channel_name}")
             self._set_cached_data(cache_key, result)
             return result
         except Exception as e:
+            logger.error(f"Error fetching channel stats for {channel_id}: {e}")
             return None
     
     def get_videos_for_period(self, channel_id, start_date, end_date):
@@ -61,6 +74,8 @@ class YouTubeStats:
             return cached
             
         try:
+            logger.info(f"Fetching videos for channel {channel_id} from {start_date} to {end_date}")
+            
             # Получаем видео канала
             videos_response = self.youtube.search().list(
                 part='id,snippet',
@@ -75,6 +90,7 @@ class YouTubeStats:
             video_ids = [item['id']['videoId'] for item in videos_response['items']]
             
             if not video_ids:
+                logger.info(f"No videos found for channel {channel_id} in the specified period")
                 self._set_cached_data(cache_key, [])
                 return []
             
@@ -122,6 +138,7 @@ class YouTubeStats:
                                 'text': clean_text[:60] + "..." if len(clean_text) > 60 else clean_text
                             })
                     except Exception as e:
+                        logger.warning(f"Failed to fetch comments for video {video['id']}: {e}")
                         pass  # Игнорируем ошибки при получении комментариев
                 
                 videos.append({
@@ -135,9 +152,11 @@ class YouTubeStats:
                     'comment_list': video_comments
                 })
             
+            logger.info(f"Successfully fetched {len(videos)} videos for channel {channel_id}")
             self._set_cached_data(cache_key, videos)
             return videos
         except Exception as e:
+            logger.error(f"Error fetching videos for channel {channel_id}: {e}")
             return []
     
     def get_recent_videos(self, channel_id, days=1):
@@ -191,6 +210,8 @@ class YouTubeStats:
     def get_summary_stats_optimized(self):
         """Оптимизированная версия получения сводной статистики"""
         try:
+            logger.info("Starting to fetch summary stats for all channels")
+            
             # Получаем все данные за один раз для каждого канала
             all_channels_data = {}
             
@@ -198,8 +219,11 @@ class YouTubeStats:
                 channel_id = channel['channel_id']
                 channel_name = channel['name']
                 
+                logger.info(f"Processing channel: {channel_name} ({channel_id})")
+                
                 channel_stats = self.get_channel_stats(channel_id)
                 if not channel_stats:
+                    logger.warning(f"Failed to get stats for channel: {channel_name}")
                     continue
                 
                 # Получаем видео за разные периоды
@@ -224,6 +248,8 @@ class YouTubeStats:
                     'yesterday_videos': yesterday_videos,
                     'week_videos': week_videos
                 }
+                
+                logger.info(f"Successfully processed channel: {channel_name}")
             
             # Считаем сводную статистику
             summary = {
@@ -232,8 +258,6 @@ class YouTubeStats:
                 'week': {'views': 0, 'likes': 0, 'comments': 0},
                 'all_time': {'views': 0, 'likes': 0, 'comments': 0}
             }
-            
-
             
             for channel_name, data in all_channels_data.items():
                 # Сегодня
@@ -260,9 +284,11 @@ class YouTubeStats:
                 summary['all_time']['likes'] += sum(v['likes'] for v in data['week_videos'])
                 summary['all_time']['comments'] += sum(v['comments'] for v in data['week_videos'])
             
+            logger.info("Successfully calculated summary stats")
             return summary
             
         except Exception as e:
+            logger.error(f"Error in get_summary_stats_optimized: {e}")
             return {
                 'today': {'views': 0, 'likes': 0, 'comments': 0},
                 'yesterday': {'views': 0, 'likes': 0, 'comments': 0},
@@ -373,3 +399,69 @@ class YouTubeStats:
             
         except Exception as e:
             return {'today': [], 'yesterday': []}
+
+    def test_api_connection(self):
+        """Тестирует подключение к YouTube API"""
+        try:
+            logger.info("Testing YouTube API connection...")
+            
+            # Пробуем получить информацию о популярных видео
+            test_response = self.youtube.videos().list(
+                part='snippet',
+                chart='mostPopular',
+                regionCode='US',
+                maxResults=1
+            ).execute()
+            
+            if test_response and 'items' in test_response:
+                logger.info("YouTube API connection successful")
+                return True, "API подключение работает"
+            else:
+                logger.error("YouTube API returned empty response")
+                return False, "API вернул пустой ответ"
+                
+        except Exception as e:
+            logger.error(f"YouTube API connection test failed: {e}")
+            return False, f"Ошибка подключения к API: {str(e)}"
+    
+    def test_channel_access(self, channel_id):
+        """Тестирует доступ к конкретному каналу"""
+        try:
+            logger.info(f"Testing access to channel: {channel_id}")
+            
+            channel_response = self.youtube.channels().list(
+                part='snippet',
+                id=channel_id
+            ).execute()
+            
+            if channel_response['items']:
+                channel_name = channel_response['items'][0]['snippet']['title']
+                logger.info(f"Successfully accessed channel: {channel_name}")
+                return True, f"Канал доступен: {channel_name}"
+            else:
+                logger.warning(f"Channel not found: {channel_id}")
+                return False, "Канал не найден"
+                
+        except Exception as e:
+            logger.error(f"Error testing channel access for {channel_id}: {e}")
+            return False, f"Ошибка доступа к каналу: {str(e)}"
+    
+    def diagnose_issues(self):
+        """Диагностирует возможные проблемы с API"""
+        issues = []
+        
+        # Тестируем общее подключение к API
+        api_ok, api_message = self.test_api_connection()
+        if not api_ok:
+            issues.append(f"API подключение: {api_message}")
+        
+        # Тестируем доступ к каждому каналу
+        for channel in config.CHANNELS:
+            channel_id = channel['channel_id']
+            channel_name = channel['name']
+            
+            channel_ok, channel_message = self.test_channel_access(channel_id)
+            if not channel_ok:
+                issues.append(f"Канал {channel_name}: {channel_message}")
+        
+        return issues

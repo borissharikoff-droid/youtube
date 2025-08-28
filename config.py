@@ -56,11 +56,6 @@ CHANNELS = [
         "username": "@DavidSpitzer-il9kx"
     },
     {
-        "name": "NERSYANE",
-        "channel_id": "UCVxRfn6OfDRk1ddym4KejWQ",
-        "username": "@Ners1syane"
-    },
-    {
         "name": "Viral Mode_On",
         "channel_id": "UCn_H280ZWuIBRadhItgQ8nQ",
         "username": "@viralmode_1"

@@ -33,12 +33,25 @@ except Exception as e:
 def get_error_message(e):
     """Возвращает понятное сообщение об ошибке"""
     error_message = "Произошла ошибка при получении статистики."
-    if "quotaExceeded" in str(e):
+    error_str = str(e).lower()
+    
+    if "quotaexceeded" in error_str or "quota exceeded" in error_str:
         error_message = "Превышен лимит запросов к YouTube API. Попробуйте позже."
-    elif "accessNotConfigured" in str(e):
+    elif "accessnotconfigured" in error_str or "access not configured" in error_str:
         error_message = "YouTube API не настроен для проекта. Проверьте настройки API ключа."
-    elif "403" in str(e):
+    elif "403" in error_str or "forbidden" in error_str:
         error_message = "Ошибка доступа к YouTube API. Проверьте API ключ."
+    elif "400" in error_str or "bad request" in error_str:
+        error_message = "Некорректный запрос к YouTube API. Проверьте настройки."
+    elif "500" in error_str or "internal server error" in error_str:
+        error_message = "Внутренняя ошибка сервера YouTube API. Попробуйте позже."
+    elif "network" in error_str or "connection" in error_str:
+        error_message = "Ошибка сети при подключении к YouTube API."
+    elif "timeout" in error_str:
+        error_message = "Превышено время ожидания ответа от YouTube API."
+    
+    # Логируем детальную ошибку для отладки
+    logger.error(f"Detailed error: {e}")
     return error_message
 
 class YouTubeStatsBot:
@@ -607,6 +620,40 @@ class YouTubeStatsBot:
         
         await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
     
+    async def diagnose_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /diagnose - диагностика проблем"""
+        user_id = update.effective_user.id
+        
+        # Проверяем, является ли пользователь администратором
+        if user_id != config.ADMIN_ID:
+            await update.message.reply_text("⚠️ Эта команда доступна только администратору.")
+            return
+        
+        await update.message.reply_text("🔍 Запускаю диагностику...")
+        
+        try:
+            # Выполняем диагностику
+            issues = self.youtube_stats.diagnose_issues()
+            
+            if not issues:
+                message = "✅ **Диагностика завершена**\n\nВсе системы работают нормально!"
+            else:
+                message = "⚠️ **Найдены проблемы:**\n\n"
+                for i, issue in enumerate(issues, 1):
+                    message += f"{i}. {issue}\n"
+                
+                message += "\n🔧 **Рекомендации:**\n"
+                message += "• Проверьте API ключ YouTube\n"
+                message += "• Убедитесь, что API включен в Google Cloud Console\n"
+                message += "• Проверьте квоту API\n"
+                message += "• Убедитесь, что каналы существуют и доступны"
+            
+            await update.message.reply_text(message, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error during diagnosis: {e}")
+            await update.message.reply_text(f"❌ Ошибка при диагностике: {str(e)}")
+    
     async def analytics_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /analytics - показывает расширенную аналитику"""
         user_id = update.effective_user.id
@@ -811,6 +858,7 @@ def main():
         application.add_handler(CommandHandler("dbstats", bot.dbstats_command))
         
         application.add_handler(CommandHandler("quota", bot.quota_command))
+        application.add_handler(CommandHandler("diagnose", bot.diagnose_command))
         application.add_handler(CommandHandler("help", bot.help_command))
         
         # Добавляем обработчик кнопок
