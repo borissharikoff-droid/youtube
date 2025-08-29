@@ -81,6 +81,10 @@ class YouTubeStatsBot:
             message = "📊 **Статистика по отслеживаемым каналам:**\n\n"
             message += f"За сегодня: {summary_stats['today']['views']:,}👁️ | {summary_stats['today']['likes']:,}👍 | {summary_stats['today']['comments']:,}💬\n"
             
+            # Добавляем пояснение о логике подсчета
+            if summary_stats['today']['views'] == 0:
+                message += "ℹ️ *Показаны видео, опубликованные сегодня*\n"
+            
             # Добавляем детальную статистику по каналам за сегодня
             for channel_data in detailed_stats['today']:
                 message += f"• {channel_data['channel_name']}: {channel_data['views']:,}👁️ | {channel_data['likes']:,}👍 | {channel_data['comments']:,}💬\n"
@@ -139,6 +143,12 @@ class YouTubeStatsBot:
             
         except Exception as e:
             logger.error(f"Ошибка при получении сводной статистики: {e}")
+            # Удаляем loading сообщение если оно есть
+            try:
+                if 'loading_message' in locals():
+                    await loading_message.delete()
+            except:
+                pass
             await update.message.reply_text(get_error_message(e))
     
     async def stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -222,6 +232,11 @@ class YouTubeStatsBot:
 • Просмотры, лайки, комментарии
 • Количество видео за период
 • Отслеживание по каналам
+
+**Важно:**
+• "За сегодня/вчера" = видео, опубликованные в этот день
+• Время рассчитывается по UTC
+• Данные кэшируются 30 минут
 
 **Лимиты:**
 • 15 запросов в день на пользователя

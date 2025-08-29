@@ -176,8 +176,47 @@ class YouTubeStats:
         return self.get_videos_for_period(channel_id, start_date, end_date)
     
     def get_daily_stats(self):
-        """Получает статистику за день по всем каналам"""
-        return self.get_stats_by_period(1)
+        """Получает статистику за день по всем каналам (улучшенная версия)"""
+        period_stats = []
+        current_utc = datetime.utcnow()
+        today_start = current_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        for channel in config.CHANNELS:
+            try:
+                channel_stats = self.get_channel_stats(channel['channel_id'])
+                if not channel_stats:
+                    continue
+                
+                # Получаем последние видео канала
+                recent_videos = self.get_recent_channel_videos(channel['channel_id'], 50)
+                
+                # Фильтруем видео, опубликованные сегодня
+                today_videos = []
+                total_views = total_likes = total_comments = 0
+                
+                for video in recent_videos:
+                    pub_date = video['published_datetime'].replace(tzinfo=None)
+                    if pub_date >= today_start:
+                        today_videos.append(video)
+                        total_views += video['views']
+                        total_likes += video['likes']
+                        total_comments += video['comments']
+                
+                period_stats.append({
+                    'channel_name': channel['name'],
+                    'channel_username': channel.get('username', ''),
+                    'channel_stats': channel_stats,
+                    'videos': today_videos,
+                    'daily_views': total_views,
+                    'daily_likes': total_likes,
+                    'daily_comments': total_comments
+                })
+                
+            except Exception as e:
+                logger.error(f"Error getting daily stats for channel {channel['name']}: {e}")
+                continue
+        
+        return period_stats
     
     def get_stats_by_period(self, days):
         """Получает статистику за указанный период по всем каналам"""
@@ -207,13 +246,83 @@ class YouTubeStats:
         
         return period_stats
     
+    def get_recent_channel_videos(self, channel_id, limit=50):
+        """Получает последние видео канала для анализа статистики"""
+        cache_key = f"recent_videos_{channel_id}_{limit}"
+        cached = self._get_cached_data(cache_key)
+        if cached:
+            return cached
+            
+        try:
+            logger.info(f"Fetching recent videos for channel {channel_id}")
+            
+            # Получаем последние видео канала (без ограничения по дате)
+            videos_response = self.youtube.search().list(
+                part='id,snippet',
+                channelId=channel_id,
+                order='date',
+                type='video',
+                maxResults=limit
+            ).execute()
+            
+            video_ids = [item['id']['videoId'] for item in videos_response['items']]
+            
+            if not video_ids:
+                logger.info(f"No recent videos found for channel {channel_id}")
+                self._set_cached_data(cache_key, [])
+                return []
+            
+            # Получаем детальную информацию о видео
+            videos_info = self.youtube.videos().list(
+                part='statistics,snippet',
+                id=','.join(video_ids)
+            ).execute()
+            
+            videos = []
+            for video in videos_info['items']:
+                stats = video['statistics']
+                published_at = datetime.fromisoformat(video['snippet']['publishedAt'].replace('Z', '+00:00'))
+                
+                videos.append({
+                    'title': video['snippet']['title'],
+                    'views': int(stats.get('viewCount', 0)),
+                    'likes': int(stats.get('likeCount', 0)),
+                    'comments': int(stats.get('commentCount', 0)),
+                    'published_at': video['snippet']['publishedAt'],
+                    'published_datetime': published_at
+                })
+            
+            logger.info(f"Successfully fetched {len(videos)} recent videos for channel {channel_id}")
+            self._set_cached_data(cache_key, videos)
+            return videos
+        except Exception as e:
+            logger.error(f"Error fetching recent videos for channel {channel_id}: {e}")
+            return []
+
     def get_summary_stats_optimized(self):
-        """Оптимизированная версия получения сводной статистики"""
+        """
+        Улучшенная версия получения сводной статистики
+        
+        ВАЖНО: Текущая логика показывает статистику видео, ОПУБЛИКОВАННЫХ в указанный период,
+        а не прирост просмотров за этот период. Это означает:
+        - "За сегодня" = статистика видео, опубликованных сегодня
+        - "За вчера" = статистика видео, опубликованных вчера
+        
+        Для точного подсчета прироста просмотров нужно сравнивать снимки статистики
+        каналов в разные дни, но это требует постоянного сохранения исторических данных.
+        """
         try:
             logger.info("Starting to fetch summary stats for all channels")
             
             # Получаем все данные за один раз для каждого канала
             all_channels_data = {}
+            current_utc = datetime.utcnow()
+            
+            # Определяем границы дней в UTC (можно улучшить для локальных зон)
+            today_start = current_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+            yesterday_start = today_start - timedelta(days=1)
+            yesterday_end = today_start
+            week_start = current_utc - timedelta(days=7)
             
             for channel in config.CHANNELS:
                 channel_id = channel['channel_id']
@@ -226,21 +335,24 @@ class YouTubeStats:
                     logger.warning(f"Failed to get stats for channel: {channel_name}")
                     continue
                 
-                # Получаем видео за разные периоды
-                end_date = datetime.utcnow()
+                # Получаем последние видео канала для анализа
+                recent_videos = self.get_recent_channel_videos(channel_id, 50)
                 
-                # Сегодня
-                today_start = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
-                today_videos = self.get_videos_for_period(channel_id, today_start, end_date)
+                # Фильтруем видео по периодам
+                today_videos = []
+                yesterday_videos = []
+                week_videos = []
                 
-                # Вчера
-                yesterday_start = (end_date - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-                yesterday_end = yesterday_start + timedelta(days=1)
-                yesterday_videos = self.get_videos_for_period(channel_id, yesterday_start, yesterday_end)
-                
-                # Неделя
-                week_start = end_date - timedelta(days=7)
-                week_videos = self.get_videos_for_period(channel_id, week_start, end_date)
+                for video in recent_videos:
+                    pub_date = video['published_datetime'].replace(tzinfo=None)
+                    
+                    if pub_date >= today_start:
+                        today_videos.append(video)
+                    elif pub_date >= yesterday_start:
+                        yesterday_videos.append(video)
+                    
+                    if pub_date >= week_start:
+                        week_videos.append(video)
                 
                 all_channels_data[channel['name']] = {
                     'channel_stats': channel_stats,
@@ -249,7 +361,7 @@ class YouTubeStats:
                     'week_videos': week_videos
                 }
                 
-                logger.info(f"Successfully processed channel: {channel_name}")
+                logger.info(f"Successfully processed channel: {channel_name} - Today: {len(today_videos)}, Yesterday: {len(yesterday_videos)}, Week: {len(week_videos)} videos")
             
             # Считаем сводную статистику
             summary = {
@@ -260,19 +372,20 @@ class YouTubeStats:
             }
             
             for channel_name, data in all_channels_data.items():
-                # Сегодня
+                # Сегодня - ТОЛЬКО видео опубликованные сегодня и их текущая статистика
                 for video in data['today_videos']:
                     summary['today']['views'] += video['views']
                     summary['today']['likes'] += video['likes']
                     summary['today']['comments'] += video['comments']
+                logger.debug(f"Channel {channel_name} today contribution: {len(data['today_videos'])} videos")
                 
-                # Вчера
+                # Вчера - ТОЛЬКО видео опубликованные вчера и их текущая статистика
                 for video in data['yesterday_videos']:
                     summary['yesterday']['views'] += video['views']
                     summary['yesterday']['likes'] += video['likes']
                     summary['yesterday']['comments'] += video['comments']
                 
-                # Неделя
+                # Неделя - все видео за неделю
                 for video in data['week_videos']:
                     summary['week']['views'] += video['views']
                     summary['week']['likes'] += video['likes']
@@ -285,6 +398,14 @@ class YouTubeStats:
                 summary['all_time']['comments'] += sum(v['comments'] for v in data['week_videos'])
             
             logger.info("Successfully calculated summary stats")
+            logger.info(f"Summary totals: Today {summary['today']}, Yesterday {summary['yesterday']}")
+            logger.info(f"Week {summary['week']}, All-time {summary['all_time']}")
+            
+            # Дополнительная отладочная информация
+            total_today_videos = sum(len(data['today_videos']) for data in all_channels_data.values())
+            total_yesterday_videos = sum(len(data['yesterday_videos']) for data in all_channels_data.values())
+            logger.info(f"Total videos processed: Today {total_today_videos}, Yesterday {total_yesterday_videos}")
+            
             return summary
             
         except Exception as e:
@@ -301,32 +422,32 @@ class YouTubeStats:
         return self.get_summary_stats_optimized()
     
     def get_today_video_stats(self):
-        """Получает статистику по видео за сегодня (загруженные и в отложке)"""
+        """Получает статистику по видео за сегодня (загруженные и в отложке) - улучшенная версия"""
         try:
             total_uploaded = 0
             total_scheduled = 0
             
             current_utc = datetime.utcnow()
             today_start = current_utc.replace(hour=0, minute=0, second=0, microsecond=0)
-            today_end = current_utc.replace(hour=23, minute=59, second=59, microsecond=999999)
             
             for channel in config.CHANNELS:
                 channel_id = channel['channel_id']
                 
-                # Получаем видео за сегодня
-                videos = self.get_videos_for_period(channel_id, today_start, today_end)
+                # Получаем последние видео канала
+                recent_videos = self.get_recent_channel_videos(channel_id, 50)
                 
-                for video in videos:
-                    # Проверяем время публикации видео
-                    published_at = datetime.fromisoformat(video['published_at'].replace('Z', '+00:00'))
-                    published_utc = published_at.replace(tzinfo=None)
+                for video in recent_videos:
+                    pub_date = video['published_datetime'].replace(tzinfo=None)
                     
-                    # Видео считается отложенным, если время публикации в будущем
-                    if published_utc > current_utc:
-                        total_scheduled += 1
-                    else:
-                        total_uploaded += 1
+                    # Проверяем, опубликовано ли видео сегодня
+                    if pub_date >= today_start:
+                        # Видео считается отложенным, если время публикации в будущем
+                        if pub_date > current_utc:
+                            total_scheduled += 1
+                        else:
+                            total_uploaded += 1
             
+            logger.info(f"Today video stats: {total_uploaded} uploaded, {total_scheduled} scheduled")
             return {
                 'uploaded': total_uploaded,
                 'scheduled': total_scheduled,
@@ -334,24 +455,20 @@ class YouTubeStats:
             }
             
         except Exception as e:
+            logger.error(f"Error in get_today_video_stats: {e}")
             return {'uploaded': 0, 'scheduled': 0, 'total': 0}
 
     def get_detailed_channel_stats(self):
-        """Получает детальную статистику по каждому каналу за сегодня и вчера"""
+        """Получает детальную статистику по каждому каналу за сегодня и вчера (улучшенная версия)"""
         try:
             detailed_stats = {
                 'today': [],
                 'yesterday': []
             }
             
-            end_date = datetime.utcnow()
-            
-            # Сегодня
-            today_start = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
-            
-            # Вчера
-            yesterday_start = (end_date - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-            yesterday_end = yesterday_start + timedelta(days=1)
+            current_utc = datetime.utcnow()
+            today_start = current_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+            yesterday_start = today_start - timedelta(days=1)
             
             for channel in config.CHANNELS:
                 channel_id = channel['channel_id']
@@ -359,17 +476,28 @@ class YouTubeStats:
                 channel_username = channel.get('username', '')
                 
                 try:
-                    # Получаем видео за сегодня
-                    today_videos = self.get_videos_for_period(channel_id, today_start, end_date)
-                    today_views = sum(video.get('views', 0) for video in today_videos)
-                    today_likes = sum(video.get('likes', 0) for video in today_videos)
-                    today_comments = sum(video.get('comments', 0) for video in today_videos)
+                    # Получаем последние видео канала
+                    recent_videos = self.get_recent_channel_videos(channel_id, 50)
                     
-                    # Получаем видео за вчера
-                    yesterday_videos = self.get_videos_for_period(channel_id, yesterday_start, yesterday_end)
-                    yesterday_views = sum(video.get('views', 0) for video in yesterday_videos)
-                    yesterday_likes = sum(video.get('likes', 0) for video in yesterday_videos)
-                    yesterday_comments = sum(video.get('comments', 0) for video in yesterday_videos)
+                    # Фильтруем и считаем статистику по периодам
+                    today_views = today_likes = today_comments = 0
+                    yesterday_views = yesterday_likes = yesterday_comments = 0
+                    
+                    for video in recent_videos:
+                        pub_date = video['published_datetime'].replace(tzinfo=None)
+                        
+                        if pub_date >= today_start:
+                            # Видео опубликовано сегодня
+                            today_views += video['views']
+                            today_likes += video['likes']
+                            today_comments += video['comments']
+                        elif pub_date >= yesterday_start:
+                            # Видео опубликовано вчера
+                            yesterday_views += video['views']
+                            yesterday_likes += video['likes']
+                            yesterday_comments += video['comments']
+                    
+                    logger.info(f"Channel {channel_name}: Today {today_views} views, Yesterday {yesterday_views} views")
                     
                 except Exception as e:
                     logger.error(f"Error getting videos for channel {channel_name}: {e}")
