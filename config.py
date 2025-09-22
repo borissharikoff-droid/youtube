@@ -3,14 +3,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Telegram Bot Token
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8208943672:AAGWCDFE7xNugXdsqilvnmojsY_pKMvW3wA")
+def _require_env(var_name: str) -> str:
+    value = os.getenv(var_name)
+    if not value:
+        raise RuntimeError(f"Environment variable {var_name} is required but not set")
+    return value
 
-# YouTube API Key
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "AIzaSyDBi9yLcdpYLR8jHG4FCG7Bq6mb7H1BWxs")
+# Telegram Bot Token (required)
+TELEGRAM_TOKEN = _require_env("TELEGRAM_TOKEN")
 
-# Admin ID
-ADMIN_ID = int(os.getenv("ADMIN_ID", "250800600"))
+# YouTube API Key (required)
+YOUTUBE_API_KEY = _require_env("YOUTUBE_API_KEY")
+
+# Admin ID (required)
+ADMIN_ID = int(_require_env("ADMIN_ID"))
 
 # Настройки лимитов API
 API_QUOTA_LIMIT = 10000  # Дневной лимит YouTube API (единиц)
