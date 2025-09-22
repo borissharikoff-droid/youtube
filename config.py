@@ -40,6 +40,8 @@ CHANNELS = [
     }
 ]
 
+# Обновлено: 2025-01-27 - добавлен канал Prime Fuel Nutrition
+
 # ИСКЛЮЧЕННЫЕ КАНАЛЫ (пример формата):
 # CHANNELS = [
 #     {"name": "Example", "channel_id": "UCxxxxxxxxxxxxxxxxxx", "username": "@example"}
