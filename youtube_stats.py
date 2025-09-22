@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import config
 import time
 import logging
+from typing import List
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
@@ -29,6 +30,10 @@ class YouTubeStats:
     def _set_cached_data(self, key, data):
         """Сохраняет данные в кэш"""
         self._cache[key] = (time.time(), data)
+    
+    def _chunk_list(self, items: List[str], chunk_size: int) -> List[List[str]]:
+        """Разбивает список на чанки фиксированного размера"""
+        return [items[i:i + chunk_size] for i in range(0, len(items), chunk_size)]
     
     def get_channel_stats(self, channel_id):
         """Получает статистику канала с кэшированием"""
@@ -67,7 +72,7 @@ class YouTubeStats:
             return None
     
     def get_videos_for_period(self, channel_id, start_date, end_date):
-        """Получает видео за период с оптимизированными запросами"""
+        """Получает ВСЕ видео за период с пагинацией и кэшированием"""
         cache_key = f"videos_{channel_id}_{start_date.date()}_{end_date.date()}"
         cached = self._get_cached_data(cache_key)
         if cached:
@@ -75,84 +80,88 @@ class YouTubeStats:
             
         try:
             logger.info(f"Fetching videos for channel {channel_id} from {start_date} to {end_date}")
-            
-            # Получаем видео канала
-            videos_response = self.youtube.search().list(
-                part='id,snippet',
-                channelId=channel_id,
-                order='date',
-                type='video',
-                publishedAfter=start_date.isoformat() + 'Z',
-                publishedBefore=end_date.isoformat() + 'Z',
-                maxResults=50
-            ).execute()
-            
-            video_ids = [item['id']['videoId'] for item in videos_response['items']]
-            
-            if not video_ids:
-                logger.info(f"No videos found for channel {channel_id} in the specified period")
-                self._set_cached_data(cache_key, [])
-                return []
-            
-            # Получаем детальную информацию о видео
-            videos_info = self.youtube.videos().list(
-                part='statistics,snippet',
-                id=','.join(video_ids)
-            ).execute()
-            
+
             videos = []
-            for video in videos_info['items']:
-                stats = video['statistics']
-                published_at = datetime.fromisoformat(video['snippet']['publishedAt'].replace('Z', '+00:00'))
-                
-                # Для сегодняшних видео проверяем отложенные
-                is_scheduled = False
-                scheduled_time = None
-                if start_date.date() == datetime.utcnow().date():
-                    # Видео считается отложенным, если время публикации в будущем
-                    current_utc = datetime.utcnow()
-                    published_utc = published_at.replace(tzinfo=None)
-                    is_scheduled = published_utc > current_utc
-                    scheduled_time = published_at.strftime('%H:%M') if is_scheduled else None
-                
-                # Получаем комментарии к видео (только для видео с большим количеством комментариев)
-                video_comments = []
-                comment_count = int(stats.get('commentCount', 0))
-                if comment_count > 10:  # Только для видео с более чем 10 комментариями
-                    try:
-                        comments_response = self.youtube.commentThreads().list(
-                            part='snippet',
-                            videoId=video['id'],
-                            maxResults=2,  # Уменьшили до 2 комментариев
-                            order='relevance'
-                        ).execute()
-                        
-                        for comment in comments_response.get('items', []):
-                            comment_text = comment['snippet']['topLevelComment']['snippet']['textDisplay']
-                            author_name = comment['snippet']['topLevelComment']['snippet']['authorDisplayName']
-                            # Очищаем HTML теги из комментария
-                            import re
-                            clean_text = re.sub(r'<[^>]+>', '', comment_text)
-                            video_comments.append({
-                                'author': author_name,
-                                'text': clean_text[:60] + "..." if len(clean_text) > 60 else clean_text
-                            })
-                    except Exception as e:
-                        logger.warning(f"Failed to fetch comments for video {video['id']}: {e}")
-                        pass  # Игнорируем ошибки при получении комментариев
-                
-                videos.append({
-                    'title': video['snippet']['title'],
-                    'views': int(stats.get('viewCount', 0)),
-                    'likes': int(stats.get('likeCount', 0)),
-                    'comments': comment_count,
-                    'published_at': video['snippet']['publishedAt'],
-                    'is_scheduled': is_scheduled,
-                    'scheduled_time': scheduled_time,
-                    'comment_list': video_comments
-                })
-            
-            logger.info(f"Successfully fetched {len(videos)} videos for channel {channel_id}")
+            next_page = None
+
+            while True:
+                search_response = self.youtube.search().list(
+                    part='id,snippet',
+                    channelId=channel_id,
+                    order='date',
+                    type='video',
+                    publishedAfter=start_date.isoformat() + 'Z',
+                    publishedBefore=end_date.isoformat() + 'Z',
+                    maxResults=50,
+                    pageToken=next_page
+                ).execute()
+
+                page_video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
+                if not page_video_ids:
+                    if not next_page:
+                        logger.info(f"No videos found for channel {channel_id} in the specified period")
+                    break
+
+                for chunk in self._chunk_list(page_video_ids, 50):
+                    videos_info = self.youtube.videos().list(
+                        part='statistics,snippet',
+                        id=','.join(chunk)
+                    ).execute()
+
+                    for video in videos_info.get('items', []):
+                        stats = video['statistics']
+                        published_at = datetime.fromisoformat(
+                            video['snippet']['publishedAt'].replace('Z', '+00:00')
+                        )
+
+                        is_scheduled = False
+                        scheduled_time = None
+                        if start_date.date() == datetime.utcnow().date():
+                            current_utc = datetime.utcnow()
+                            published_utc = published_at.replace(tzinfo=None)
+                            is_scheduled = published_utc > current_utc
+                            scheduled_time = published_at.strftime('%H:%M') if is_scheduled else None
+
+                        video_comments = []
+                        comment_count = int(stats.get('commentCount', 0))
+                        if comment_count > 10:
+                            try:
+                                comments_response = self.youtube.commentThreads().list(
+                                    part='snippet',
+                                    videoId=video['id'],
+                                    maxResults=2,
+                                    order='relevance'
+                                ).execute()
+                                for comment in comments_response.get('items', []):
+                                    comment_text = comment['snippet']['topLevelComment']['snippet']['textDisplay']
+                                    author_name = comment['snippet']['topLevelComment']['snippet']['authorDisplayName']
+                                    import re
+                                    clean_text = re.sub(r'<[^>]+>', '', comment_text)
+                                    video_comments.append({
+                                        'author': author_name,
+                                        'text': clean_text[:60] + "..." if len(clean_text) > 60 else clean_text
+                                    })
+                            except Exception as e:
+                                logger.warning(f"Failed to fetch comments for video {video['id']}: {e}")
+                                pass
+
+                        videos.append({
+                            'title': video['snippet']['title'],
+                            'views': int(stats.get('viewCount', 0)),
+                            'likes': int(stats.get('likeCount', 0)),
+                            'comments': comment_count,
+                            'published_at': video['snippet']['publishedAt'],
+                            'published_datetime': published_at,
+                            'is_scheduled': is_scheduled,
+                            'scheduled_time': scheduled_time,
+                            'comment_list': video_comments
+                        })
+
+                next_page = search_response.get('nextPageToken')
+                if not next_page:
+                    break
+
+            logger.info(f"Successfully fetched {len(videos)} videos for channel {channel_id} in period")
             self._set_cached_data(cache_key, videos)
             return videos
         except Exception as e:
@@ -186,22 +195,14 @@ class YouTubeStats:
                 channel_stats = self.get_channel_stats(channel['channel_id'])
                 if not channel_stats:
                     continue
-                
-                # Получаем последние видео канала
-                recent_videos = self.get_recent_channel_videos(channel['channel_id'], 50)
-                
-                # Фильтруем видео, опубликованные сегодня
-                today_videos = []
-                total_views = total_likes = total_comments = 0
-                
-                for video in recent_videos:
-                    pub_date = video['published_datetime'].replace(tzinfo=None)
-                    if pub_date >= today_start:
-                        today_videos.append(video)
-                        total_views += video['views']
-                        total_likes += video['likes']
-                        total_comments += video['comments']
-                
+
+                today_end = today_start + timedelta(days=1)
+                today_videos = self.get_videos_for_period(channel['channel_id'], today_start, today_end)
+
+                total_views = sum(v['views'] for v in today_videos)
+                total_likes = sum(v['likes'] for v in today_videos)
+                total_comments = sum(v['comments'] for v in today_videos)
+
                 period_stats.append({
                     'channel_name': channel['name'],
                     'channel_username': channel.get('username', ''),
@@ -211,7 +212,7 @@ class YouTubeStats:
                     'daily_likes': total_likes,
                     'daily_comments': total_comments
                 })
-                
+
             except Exception as e:
                 logger.error(f"Error getting daily stats for channel {channel['name']}: {e}")
                 continue
@@ -335,8 +336,12 @@ class YouTubeStats:
                     logger.warning(f"Failed to get stats for channel: {channel_name}")
                     continue
                 
-                # Получаем последние видео канала для анализа
-                recent_videos = self.get_recent_channel_videos(channel_id, 50)
+                # Получаем видео за сегодня
+                today_end = today_start + timedelta(days=1)
+                recent_videos = self.get_videos_for_period(channel_id, today_start, today_end)
+                # Получаем видео по периодам через точные диапазоны
+                today_end = today_start + timedelta(days=1)
+                recent_videos = self.get_videos_for_period(channel_id, today_start, today_end)
                 
                 # Фильтруем видео по периодам
                 today_videos = []
@@ -491,7 +496,7 @@ class YouTubeStats:
                             today_views += video['views']
                             today_likes += video['likes']
                             today_comments += video['comments']
-                        elif pub_date >= yesterday_start:
+                        elif yesterday_start <= pub_date < today_start:
                             # Видео опубликовано вчера
                             yesterday_views += video['views']
                             yesterday_likes += video['likes']
