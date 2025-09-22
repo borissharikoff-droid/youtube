@@ -25,43 +25,16 @@ API_QUOTA_PER_REQUEST = {
 DAILY_REQUEST_LIMIT = 15  # Максимум запросов в день на пользователя
 REQUEST_COOLDOWN = 120  # 2 минуты между запросами
 
-# Список каналов для мониторинга (NERSYANE исключен)
+# Список каналов для мониторинга
 CHANNELS = [
     {
-        "name": "boom_shorts",
-        "channel_id": "UCOzhymYx59BNUfv_sFcPjtA",
-        "username": "@boom_shorts-s6u"
-    },
-    {
-        "name": "Simpson Fan",
-        "channel_id": "UCNwyOnZ1VfS-5lBd9_fXf5A",
-        "username": "@simpsonfannumberone"
-    },
-    {
-        "name": "Balkin Fankouv",
-        "channel_id": "UC-mxDdjUpDpR8yZqYp6rOjw",
-        "username": "@BalkinFankouv"
-    },
-    {
-        "name": "VIDAK",
-        "channel_id": "UCiJklQGS9xxChYyhmJZJXHQ",
-        "username": "@vidakapp"
-    },
-    {
-        "name": "David Spitzer",
-        "channel_id": "UCpwsCGtcWd5ARq-SuGAqCcA",
-        "username": "@DavidSpitzer-il9kx"
-    },
-    {
-        "name": "Viral Mode_On",
-        "channel_id": "UCn_H280ZWuIBRadhItgQ8nQ",
-        "username": "@viralmode_1"
+        "name": "Prime Fuel Nutrition",
+        "channel_id": "UCpvd8ytFLL2E8Zgg6M0_itA",
+        "username": "@primefuelnutrition"
     }
 ]
 
-# ИСКЛЮЧЕННЫЙ КАНАЛ (не отслеживается):
-# {
-#     "name": "NERSYANE",
-#     "channel_id": "UCVxRfn6OfDRk1ddym4KejWQ", 
-#     "username": "@Ners1syane"
-# }
+# ИСКЛЮЧЕННЫЕ КАНАЛЫ (пример формата):
+# CHANNELS = [
+#     {"name": "Example", "channel_id": "UCxxxxxxxxxxxxxxxxxx", "username": "@example"}
+# ]
