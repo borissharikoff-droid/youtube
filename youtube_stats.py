@@ -336,28 +336,14 @@ class YouTubeStats:
                     logger.warning(f"Failed to get stats for channel: {channel_name}")
                     continue
                 
-                # Получаем видео за сегодня
-                today_end = today_start + timedelta(days=1)
-                recent_videos = self.get_videos_for_period(channel_id, today_start, today_end)
                 # Получаем видео по периодам через точные диапазоны
                 today_end = today_start + timedelta(days=1)
-                recent_videos = self.get_videos_for_period(channel_id, today_start, today_end)
+                yesterday_end = today_start
                 
-                # Фильтруем видео по периодам
-                today_videos = []
-                yesterday_videos = []
-                week_videos = []
-                
-                for video in recent_videos:
-                    pub_date = video['published_datetime'].replace(tzinfo=None)
-                    
-                    if pub_date >= today_start:
-                        today_videos.append(video)
-                    elif pub_date >= yesterday_start:
-                        yesterday_videos.append(video)
-                    
-                    if pub_date >= week_start:
-                        week_videos.append(video)
+                # Получаем видео за каждый период отдельно
+                today_videos = self.get_videos_for_period(channel_id, today_start, today_end)
+                yesterday_videos = self.get_videos_for_period(channel_id, yesterday_start, yesterday_end)
+                week_videos = self.get_videos_for_period(channel_id, week_start, current_utc)
                 
                 all_channels_data[channel['name']] = {
                     'channel_stats': channel_stats,
@@ -396,9 +382,9 @@ class YouTubeStats:
                     summary['week']['likes'] += video['likes']
                     summary['week']['comments'] += video['comments']
                 
-                # Все время (общие просмотры канала)
+                # Все время - используем общую статистику канала
                 summary['all_time']['views'] += data['channel_stats']['total_views']
-                # Для лайков и комментариев используем недельные данные как приближение
+                # Для лайков и комментариев суммируем все видео за неделю (как приближение)
                 summary['all_time']['likes'] += sum(v['likes'] for v in data['week_videos'])
                 summary['all_time']['comments'] += sum(v['comments'] for v in data['week_videos'])
             
