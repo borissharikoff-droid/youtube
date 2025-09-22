@@ -377,16 +377,28 @@ class YouTubeStats:
                     summary['yesterday']['comments'] += video['comments']
                 
                 # Неделя - все видео за неделю
+                week_views_sum = 0
+                week_likes_sum = 0
+                week_comments_sum = 0
                 for video in data['week_videos']:
-                    summary['week']['views'] += video['views']
-                    summary['week']['likes'] += video['likes']
-                    summary['week']['comments'] += video['comments']
+                    week_views_sum += video['views']
+                    week_likes_sum += video['likes']
+                    week_comments_sum += video['comments']
+                summary['week']['views'] += week_views_sum
+                summary['week']['likes'] += week_likes_sum
+                summary['week']['comments'] += week_comments_sum
                 
-                # Все время - используем общую статистику канала
-                summary['all_time']['views'] += data['channel_stats']['total_views']
-                # Для лайков и комментариев суммируем все видео за неделю (как приближение)
-                summary['all_time']['likes'] += sum(v['likes'] for v in data['week_videos'])
-                summary['all_time']['comments'] += sum(v['comments'] for v in data['week_videos'])
+                # Все время - используем общую статистику канала.
+                # Если по какой-то причине общее число просмотров не получено (0/None),
+                # используем безопасный фолбэк: недельную сумму, чтобы не было парадокса
+                # "за неделю больше, чем за все время".
+                channel_total_views = int(data['channel_stats'].get('total_views', 0) or 0)
+                if channel_total_views <= 0:
+                    channel_total_views = week_views_sum
+                summary['all_time']['views'] += channel_total_views
+                # Для лайков и комментариев используем недельные данные как приближение
+                summary['all_time']['likes'] += week_likes_sum
+                summary['all_time']['comments'] += week_comments_sum
             
             logger.info("Successfully calculated summary stats")
             logger.info(f"Summary totals: Today {summary['today']}, Yesterday {summary['yesterday']}")
