@@ -393,7 +393,8 @@ class YouTubeStats:
                 # используем безопасный фолбэк: недельную сумму, чтобы не было парадокса
                 # "за неделю больше, чем за все время".
                 channel_total_views = int(data['channel_stats'].get('total_views', 0) or 0)
-                if channel_total_views <= 0:
+                # Безопасность: не допускаем ситуации, когда all_time < week
+                if channel_total_views < week_views_sum:
                     channel_total_views = week_views_sum
                 summary['all_time']['views'] += channel_total_views
                 # Для лайков и комментариев используем недельные данные как приближение
