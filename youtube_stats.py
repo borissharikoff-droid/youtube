@@ -57,12 +57,11 @@ class YouTubeStats:
             logger.warning(f"Failed to save subs store: {e}")
 
     def _get_period_keys(self):
-        """Возвращает ключи периодов для сегодняшнего дня, вчера и недели (UTC)."""
+        """Возвращает ключи периодов для сегодняшнего дня, вчера и недели"""
         now = datetime.utcnow()
         today_key = now.strftime('%Y-%m-%d')
         yesterday_key = (now - timedelta(days=1)).strftime('%Y-%m-%d')
-        week_start = now - timedelta(days=now.weekday())
-        week_key = f"week_{week_start.strftime('%Y-%m-%d')}"
+        week_key = f"week_{(now - timedelta(days=now.weekday())).strftime('%Y-%m-%d')}"  # понедельник недели
         return today_key, yesterday_key, week_key
 
     def _update_and_get_subs_gains(self, channel_id: str, current_subs: int):
@@ -75,30 +74,28 @@ class YouTubeStats:
 
         ch = self._subs_store.setdefault("channels", {}).setdefault(channel_id, {})
 
-        # Если наступил новый день (UTC), переносим baseline_today в baseline_yesterday
-        if ch.get("baseline_today_key") and ch.get("baseline_today_key") != today_key:
-            ch["baseline_yesterday_key"] = ch.get("baseline_today_key")
-            ch["baseline_yesterday_subs"] = ch.get("baseline_today_subs", current_subs)
-
-        # Устанавливаем baseline сегодня, если отсутствует или день сменился
+        # Инициализация базовых значений, если отсутствуют
         if ch.get("baseline_today_key") != today_key:
             ch["baseline_today_key"] = today_key
             ch["baseline_today_subs"] = current_subs
 
-        # Устанавливаем baseline недели при смене недели
+        if ch.get("baseline_yesterday_key") != yesterday_key and yesterday_key not in ch:
+            # Сохраним снэпшот на вчера, если его нет
+            ch[yesterday_key] = current_subs
+
         if ch.get("baseline_week_key") != week_key:
             ch["baseline_week_key"] = week_key
             ch["baseline_week_subs"] = current_subs
 
-        # Вычисление приростов
-        baseline_today = int(ch.get("baseline_today_subs", current_subs))
-        baseline_week = int(ch.get("baseline_week_subs", current_subs))
-        baseline_yesterday = int(ch.get("baseline_yesterday_subs", baseline_today))
-
-        today_gain = max(0, current_subs - baseline_today)
-        week_gain = max(0, current_subs - baseline_week)
-        # Вчера: разница между baseline_today (начало сегодняшнего дня) и baseline_yesterday (начало вчера)
-        yesterday_gain = max(0, baseline_today - baseline_yesterday)
+        # Вычисления прироста
+        today_gain = max(0, current_subs - int(ch.get("baseline_today_subs", current_subs)))
+        week_gain = max(0, current_subs - int(ch.get("baseline_week_subs", current_subs)))
+        # Для вчера используем сохранённое значение на вчерашний день, если есть
+        yesterday_baseline = ch.get(yesterday_key)
+        if yesterday_baseline is None:
+            yesterday_gain = 0
+        else:
+            yesterday_gain = max(0, current_subs - int(yesterday_baseline))
 
         self._save_subs_store()
 
@@ -436,7 +433,7 @@ class YouTubeStats:
                 'today': {'views': 0, 'likes': 0, 'comments': 0, 'subs_gain': 0, 'video_count': 0},
                 'yesterday': {'views': 0, 'likes': 0, 'comments': 0, 'subs_gain': 0, 'video_count': 0},
                 'week': {'views': 0, 'likes': 0, 'comments': 0, 'subs_gain': 0, 'video_count': 0},
-                'all_time': {'views': 0, 'subscribers': 0, 'videos': 0}
+                'all_time': {'views': 0, 'likes': 0, 'comments': 0, 'subscribers': 0, 'videos': 0}
             }
             
             for channel_name, data in all_channels_data.items():
@@ -477,6 +474,9 @@ class YouTubeStats:
                 if channel_total_views < week_views_sum:
                     channel_total_views = week_views_sum
                 summary['all_time']['views'] += channel_total_views
+                # Для лайков и комментариев используем недельные данные как приближение
+                summary['all_time']['likes'] += week_likes_sum
+                summary['all_time']['comments'] += week_comments_sum
                 summary['all_time']['subscribers'] += int(data['channel_stats'].get('subscribers', 0) or 0)
                 summary['all_time']['videos'] += int(data['channel_stats'].get('total_videos', 0) or 0)
 
