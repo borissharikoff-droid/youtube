@@ -121,7 +121,6 @@ class YouTubeStatsBot:
             )
             message += (
                 f"За все время: {summary_stats['all_time']['views']:,}👁️ | "
-                f"{summary_stats['all_time']['likes']:,}👍 | {summary_stats['all_time']['comments']:,}💬 | "
                 f"{summary_stats['all_time'].get('subscribers', 0):,}👤 | {summary_stats['all_time'].get('videos', 0):,}🎬\n\n"
             )
             message += f"Каналов отслеживается: {len(config.CHANNELS)}\n\n"
