@@ -1,5 +1,7 @@
 from googleapiclient.discovery import build
 from datetime import datetime, timedelta
+import json
+import os
 import config
 import time
 import logging
@@ -18,6 +20,9 @@ class YouTubeStats:
             raise
         self._cache = {}
         self._cache_timeout = 1800  # 30 минут кэш для оптимизации
+        # Файл для хранения базовых значений подписчиков по периодам
+        self._subs_store_file = "subs_history.json"
+        self._load_subs_store()
     
     def _get_cached_data(self, key):
         """Получает данные из кэша"""
@@ -30,6 +35,75 @@ class YouTubeStats:
     def _set_cached_data(self, key, data):
         """Сохраняет данные в кэш"""
         self._cache[key] = (time.time(), data)
+
+    def _load_subs_store(self):
+        """Загружает или инициализирует хранилище подписчиков"""
+        try:
+            if os.path.exists(self._subs_store_file):
+                with open(self._subs_store_file, 'r', encoding='utf-8') as f:
+                    self._subs_store = json.load(f)
+            else:
+                self._subs_store = {"channels": {}}
+        except Exception as e:
+            logger.warning(f"Failed to load subs store: {e}")
+            self._subs_store = {"channels": {}}
+
+    def _save_subs_store(self):
+        """Сохраняет хранилище подписчиков"""
+        try:
+            with open(self._subs_store_file, 'w', encoding='utf-8') as f:
+                json.dump(self._subs_store, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.warning(f"Failed to save subs store: {e}")
+
+    def _get_period_keys(self):
+        """Возвращает ключи периодов для сегодняшнего дня, вчера и недели"""
+        now = datetime.utcnow()
+        today_key = now.strftime('%Y-%m-%d')
+        yesterday_key = (now - timedelta(days=1)).strftime('%Y-%m-%d')
+        week_key = f"week_{(now - timedelta(days=now.weekday())).strftime('%Y-%m-%d')}"  # понедельник недели
+        return today_key, yesterday_key, week_key
+
+    def _update_and_get_subs_gains(self, channel_id: str, current_subs: int):
+        """Обновляет базовые значения и возвращает прирост подписчиков по периодам.
+
+        Примечание: прирост корректно отобразится только после первого сохранения базового значения.
+        На первом запуске будет 0.
+        """
+        today_key, yesterday_key, week_key = self._get_period_keys()
+
+        ch = self._subs_store.setdefault("channels", {}).setdefault(channel_id, {})
+
+        # Инициализация базовых значений, если отсутствуют
+        if ch.get("baseline_today_key") != today_key:
+            ch["baseline_today_key"] = today_key
+            ch["baseline_today_subs"] = current_subs
+
+        if ch.get("baseline_yesterday_key") != yesterday_key and yesterday_key not in ch:
+            # Сохраним снэпшот на вчера, если его нет
+            ch[yesterday_key] = current_subs
+
+        if ch.get("baseline_week_key") != week_key:
+            ch["baseline_week_key"] = week_key
+            ch["baseline_week_subs"] = current_subs
+
+        # Вычисления прироста
+        today_gain = max(0, current_subs - int(ch.get("baseline_today_subs", current_subs)))
+        week_gain = max(0, current_subs - int(ch.get("baseline_week_subs", current_subs)))
+        # Для вчера используем сохранённое значение на вчерашний день, если есть
+        yesterday_baseline = ch.get(yesterday_key)
+        if yesterday_baseline is None:
+            yesterday_gain = 0
+        else:
+            yesterday_gain = max(0, current_subs - int(yesterday_baseline))
+
+        self._save_subs_store()
+
+        return {
+            'today': today_gain,
+            'yesterday': yesterday_gain,
+            'week': week_gain
+        }
     
     def _chunk_list(self, items: List[str], chunk_size: int) -> List[List[str]]:
         """Разбивает список на чанки фиксированного размера"""
@@ -356,10 +430,10 @@ class YouTubeStats:
             
             # Считаем сводную статистику
             summary = {
-                'today': {'views': 0, 'likes': 0, 'comments': 0},
-                'yesterday': {'views': 0, 'likes': 0, 'comments': 0},
-                'week': {'views': 0, 'likes': 0, 'comments': 0},
-                'all_time': {'views': 0, 'likes': 0, 'comments': 0}
+                'today': {'views': 0, 'likes': 0, 'comments': 0, 'subs_gain': 0, 'video_count': 0},
+                'yesterday': {'views': 0, 'likes': 0, 'comments': 0, 'subs_gain': 0, 'video_count': 0},
+                'week': {'views': 0, 'likes': 0, 'comments': 0, 'subs_gain': 0, 'video_count': 0},
+                'all_time': {'views': 0, 'likes': 0, 'comments': 0, 'subscribers': 0, 'videos': 0}
             }
             
             for channel_name, data in all_channels_data.items():
@@ -369,12 +443,14 @@ class YouTubeStats:
                     summary['today']['likes'] += video['likes']
                     summary['today']['comments'] += video['comments']
                 logger.debug(f"Channel {channel_name} today contribution: {len(data['today_videos'])} videos")
+                summary['today']['video_count'] += len(data['today_videos'])
                 
                 # Вчера - ТОЛЬКО видео опубликованные вчера и их текущая статистика
                 for video in data['yesterday_videos']:
                     summary['yesterday']['views'] += video['views']
                     summary['yesterday']['likes'] += video['likes']
                     summary['yesterday']['comments'] += video['comments']
+                summary['yesterday']['video_count'] += len(data['yesterday_videos'])
                 
                 # Неделя - все видео за неделю
                 week_views_sum = 0
@@ -387,6 +463,7 @@ class YouTubeStats:
                 summary['week']['views'] += week_views_sum
                 summary['week']['likes'] += week_likes_sum
                 summary['week']['comments'] += week_comments_sum
+                summary['week']['video_count'] += len(data['week_videos'])
                 
                 # Все время - используем общую статистику канала.
                 # Если по какой-то причине общее число просмотров не получено (0/None),
@@ -400,6 +477,17 @@ class YouTubeStats:
                 # Для лайков и комментариев используем недельные данные как приближение
                 summary['all_time']['likes'] += week_likes_sum
                 summary['all_time']['comments'] += week_comments_sum
+                summary['all_time']['subscribers'] += int(data['channel_stats'].get('subscribers', 0) or 0)
+                summary['all_time']['videos'] += int(data['channel_stats'].get('total_videos', 0) or 0)
+
+                # Прирост подписчиков
+                gains = self._update_and_get_subs_gains(
+                    channel_id=config.CHANNELS[[c['name'] for c in config.CHANNELS].index(channel_name)]['channel_id'],
+                    current_subs=int(data['channel_stats'].get('subscribers', 0) or 0)
+                )
+                summary['today']['subs_gain'] += gains['today']
+                summary['yesterday']['subs_gain'] += gains['yesterday']
+                summary['week']['subs_gain'] += gains['week']
             
             logger.info("Successfully calculated summary stats")
             logger.info(f"Summary totals: Today {summary['today']}, Yesterday {summary['yesterday']}")
