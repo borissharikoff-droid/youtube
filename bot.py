@@ -79,7 +79,11 @@ class YouTubeStatsBot:
             
             # Формируем сообщение со сводной статистикой
             message = "📊 **Статистика по отслеживаемым каналам:**\n\n"
-            message += f"За сегодня: {summary_stats['today']['views']:,}👁️ | {summary_stats['today']['likes']:,}👍 | {summary_stats['today']['comments']:,}💬\n"
+            message += (
+                f"За сегодня: {summary_stats['today']['views']:,}👁️ | "
+                f"{summary_stats['today']['likes']:,}👍 | {summary_stats['today']['comments']:,}💬 | "
+                f"+{summary_stats['today'].get('subs_gain', 0):,}👤 | {summary_stats['today'].get('video_count', 0):,}🎬\n"
+            )
             
             # Добавляем пояснение о логике подсчета
             if summary_stats['today']['views'] == 0:
@@ -87,22 +91,39 @@ class YouTubeStatsBot:
             
             # Добавляем детальную статистику по каналам за сегодня
             for channel_data in detailed_stats['today']:
-                message += f"• {channel_data['channel_name']}: {channel_data['views']:,}👁️ | {channel_data['likes']:,}👍 | {channel_data['comments']:,}💬\n"
+                message += (
+                    f"• {channel_data['channel_name']}: {channel_data['views']:,}👁️ | "
+                    f"{channel_data['likes']:,}👍 | {channel_data['comments']:,}💬\n"
+                )
             
             # Проверяем наличие данных за вчера
             if 'yesterday' in summary_stats and summary_stats['yesterday']:
-                message += f"\nЗа вчера: {summary_stats['yesterday']['views']:,}👁️ | {summary_stats['yesterday']['likes']:,}👍 | {summary_stats['yesterday']['comments']:,}💬\n"
+                message += (
+                    f"\nЗа вчера: {summary_stats['yesterday']['views']:,}👁️ | "
+                    f"{summary_stats['yesterday']['likes']:,}👍 | {summary_stats['yesterday']['comments']:,}💬 | "
+                    f"+{summary_stats['yesterday'].get('subs_gain', 0):,}👤 | {summary_stats['yesterday'].get('video_count', 0):,}🎬\n"
+                )
                 
                 # Добавляем детальную статистику по каналам за вчера
                 if 'yesterday' in detailed_stats and detailed_stats['yesterday']:
                     for channel_data in detailed_stats['yesterday']:
-                        message += f"• {channel_data['channel_name']}: {channel_data['views']:,}👁️ | {channel_data['likes']:,}👍 | {channel_data['comments']:,}💬\n"
+                        message += (
+                            f"• {channel_data['channel_name']}: {channel_data['views']:,}👁️ | "
+                            f"{channel_data['likes']:,}👍 | {channel_data['comments']:,}💬\n"
+                        )
             else:
                 message += f"\nЗа вчера: Данные временно недоступны\n"
             
-            message += f"\nЗа неделю: {summary_stats['week']['views']:,}👁️ | {summary_stats['week']['likes']:,}👍 | {summary_stats['week']['comments']:,}💬\n"
-            message += f"За все время: {summary_stats['all_time']['views']:,}👁️ | {summary_stats['all_time']['likes']:,}👍 | {summary_stats['all_time']['comments']:,}💬\n\n"
-            message += f"📹 Видео за сегодня: {today_video_stats['uploaded']} загружено, {today_video_stats['scheduled']} в отложке\n"
+            message += (
+                f"\nЗа неделю: {summary_stats['week']['views']:,}👁️ | "
+                f"{summary_stats['week']['likes']:,}👍 | {summary_stats['week']['comments']:,}💬 | "
+                f"+{summary_stats['week'].get('subs_gain', 0):,}👤 | {summary_stats['week'].get('video_count', 0):,}🎬\n"
+            )
+            message += (
+                f"За все время: {summary_stats['all_time']['views']:,}👁️ | "
+                f"{summary_stats['all_time']['likes']:,}👍 | {summary_stats['all_time']['comments']:,}💬 | "
+                f"{summary_stats['all_time'].get('subscribers', 0):,}👤 | {summary_stats['all_time'].get('videos', 0):,}🎬\n\n"
+            )
             message += f"Каналов отслеживается: {len(config.CHANNELS)}\n\n"
             
             # Убираем строку с количеством запросов по просьбе пользователя
