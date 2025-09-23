@@ -56,91 +56,56 @@ class YouTubeStats:
         except Exception as e:
             logger.warning(f"Failed to save subs store: {e}")
 
-    def _get_period_bounds(self):
-        """Возвращает границы периодов (UTC): начало сегодня, начало вчера, начало недели, сейчас."""
+    def _get_period_keys(self):
+        """Возвращает ключи периодов для сегодняшнего дня, вчера и недели (UTC)."""
         now = datetime.utcnow()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        yesterday_start = today_start - timedelta(days=1)
-        week_start = today_start - timedelta(days=today_start.weekday())
-        return today_start, yesterday_start, week_start, now
-
-    def _record_subs_observation(self, channel_id: str, current_subs: int):
-        """Сохраняет наблюдение подписчиков с временной меткой (UTC)."""
-        ch = self._subs_store.setdefault("channels", {}).setdefault(channel_id, {})
-        observations = ch.setdefault("observations", [])
-
-        now = datetime.utcnow()
-        now_iso = now.isoformat() + "Z"
-
-        # Если последняя запись с тем же значением и не старше 10 минут — не дублируем
-        if observations:
-            last = observations[-1]
-            try:
-                last_ts = datetime.fromisoformat(last.get("ts", "").replace('Z', '+00:00'))
-            except Exception:
-                last_ts = None
-            if last.get("subs") == current_subs and last_ts and (now - last_ts).total_seconds() < 600:
-                return
-
-        observations.append({"ts": now_iso, "subs": int(current_subs)})
-
-        # Храним не более 14 дней наблюдений
-        cutoff = now - timedelta(days=14)
-        pruned = []
-        for item in observations:
-            try:
-                ts = datetime.fromisoformat(item.get("ts", "").replace('Z', '+00:00'))
-            except Exception:
-                continue
-            if ts >= cutoff:
-                pruned.append(item)
-        ch["observations"] = pruned
-        self._save_subs_store()
-
-    def _get_baseline_subs(self, observations: list, baseline_dt: datetime) -> int | None:
-        """Находит первое наблюдение на/после baseline_dt и возвращает его subs."""
-        if not observations:
-            return None
-        # Линейный проход (объём небольшой); можно оптимизировать бинарным поиском при необходимости
-        candidate = None
-        for item in observations:
-            try:
-                ts = datetime.fromisoformat(item.get("ts", "").replace('Z', '+00:00'))
-            except Exception:
-                continue
-            if ts >= baseline_dt:
-                candidate = item.get("subs")
-                break
-        return int(candidate) if candidate is not None else None
+        today_key = now.strftime('%Y-%m-%d')
+        yesterday_key = (now - timedelta(days=1)).strftime('%Y-%m-%d')
+        week_start = now - timedelta(days=now.weekday())
+        week_key = f"week_{week_start.strftime('%Y-%m-%d')}"
+        return today_key, yesterday_key, week_key
 
     def _update_and_get_subs_gains(self, channel_id: str, current_subs: int):
-        """Записывает наблюдение и возвращает прирост подписчиков за сегодня/вчера/неделю (UTC)."""
-        # Записываем наблюдение
-        self._record_subs_observation(channel_id, current_subs)
+        """Обновляет базовые значения и возвращает прирост подписчиков по периодам.
+
+        Примечание: прирост корректно отобразится только после первого сохранения базового значения.
+        На первом запуске будет 0.
+        """
+        today_key, yesterday_key, week_key = self._get_period_keys()
 
         ch = self._subs_store.setdefault("channels", {}).setdefault(channel_id, {})
-        observations = ch.get("observations", [])
 
-        today_start, yesterday_start, week_start, _ = self._get_period_bounds()
+        # Если наступил новый день (UTC), переносим baseline_today в baseline_yesterday
+        if ch.get("baseline_today_key") and ch.get("baseline_today_key") != today_key:
+            ch["baseline_yesterday_key"] = ch.get("baseline_today_key")
+            ch["baseline_yesterday_subs"] = ch.get("baseline_today_subs", current_subs)
 
-        # Базовые значения
-        baseline_today = self._get_baseline_subs(observations, today_start)
-        baseline_yesterday = self._get_baseline_subs(observations, yesterday_start)
-        baseline_week = self._get_baseline_subs(observations, week_start)
+        # Устанавливаем baseline сегодня, если отсутствует или день сменился
+        if ch.get("baseline_today_key") != today_key:
+            ch["baseline_today_key"] = today_key
+            ch["baseline_today_subs"] = current_subs
 
-        # Если базовой точки нет — прирост 0 (до первого сохранения в этот период)
-        today_gain = max(0, current_subs - baseline_today) if baseline_today is not None else 0
-        week_gain = max(0, current_subs - baseline_week) if baseline_week is not None else 0
-        # Вчера: разница между baseline сегодня и baseline вчера
-        if baseline_today is not None and baseline_yesterday is not None:
-            yesterday_gain = max(0, baseline_today - baseline_yesterday)
-        else:
-            yesterday_gain = 0
+        # Устанавливаем baseline недели при смене недели
+        if ch.get("baseline_week_key") != week_key:
+            ch["baseline_week_key"] = week_key
+            ch["baseline_week_subs"] = current_subs
+
+        # Вычисление приростов
+        baseline_today = int(ch.get("baseline_today_subs", current_subs))
+        baseline_week = int(ch.get("baseline_week_subs", current_subs))
+        baseline_yesterday = int(ch.get("baseline_yesterday_subs", baseline_today))
+
+        today_gain = max(0, current_subs - baseline_today)
+        week_gain = max(0, current_subs - baseline_week)
+        # Вчера: разница между baseline_today (начало сегодняшнего дня) и baseline_yesterday (начало вчера)
+        yesterday_gain = max(0, baseline_today - baseline_yesterday)
+
+        self._save_subs_store()
 
         return {
-            'today': int(today_gain),
-            'yesterday': int(yesterday_gain),
-            'week': int(week_gain)
+            'today': today_gain,
+            'yesterday': yesterday_gain,
+            'week': week_gain
         }
     
     def _chunk_list(self, items: List[str], chunk_size: int) -> List[List[str]]:
@@ -517,7 +482,7 @@ class YouTubeStats:
 
                 # Прирост подписчиков
                 gains = self._update_and_get_subs_gains(
-                    channel_id=channel_id,
+                    channel_id=config.CHANNELS[[c['name'] for c in config.CHANNELS].index(channel_name)]['channel_id'],
                     current_subs=int(data['channel_stats'].get('subscribers', 0) or 0)
                 )
                 summary['today']['subs_gain'] += gains['today']
