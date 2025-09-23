@@ -431,7 +431,7 @@ class YouTubeStats:
             all_channels_data = {}
             current_utc = datetime.utcnow()
             
-            # Определяем границы периодов в UTC (можно улучшить для локальных зон)
+            # Определяем границы дней в UTC (можно улучшить для локальных зон)
             today_start = current_utc.replace(hour=0, minute=0, second=0, microsecond=0)
             yesterday_start = today_start - timedelta(days=1)
             yesterday_end = today_start
@@ -448,19 +448,16 @@ class YouTubeStats:
                     logger.warning(f"Failed to get stats for channel: {channel_name}")
                     continue
                 
-                # Получаем последние видео и фильтруем по периодам
-                recent_videos = self.get_recent_channel_videos(channel_id, 200)
+                # Получаем видео по периодам через точные диапазоны
                 today_end = today_start + timedelta(days=1)
+                yesterday_end = today_start
                 
-                today_videos = [v for v in recent_videos if v['published_datetime'].replace(tzinfo=None) >= today_start]
-                yesterday_videos = [
-                    v for v in recent_videos
-                    if yesterday_start <= v['published_datetime'].replace(tzinfo=None) < today_start
-                ]
-                week_videos = [v for v in recent_videos if v['published_datetime'].replace(tzinfo=None) >= week_start]
+                # Получаем видео за каждый период отдельно
+                today_videos = self.get_videos_for_period(channel_id, today_start, today_end)
+                yesterday_videos = self.get_videos_for_period(channel_id, yesterday_start, yesterday_end)
+                week_videos = self.get_videos_for_period(channel_id, week_start, current_utc)
                 
                 all_channels_data[channel['name']] = {
-                    'channel_id': channel_id,
                     'channel_stats': channel_stats,
                     'today_videos': today_videos,
                     'yesterday_videos': yesterday_videos,
@@ -520,7 +517,7 @@ class YouTubeStats:
 
                 # Прирост подписчиков
                 gains = self._update_and_get_subs_gains(
-                    channel_id=data.get('channel_id'),
+                    channel_id=channel_id,
                     current_subs=int(data['channel_stats'].get('subscribers', 0) or 0)
                 )
                 summary['today']['subs_gain'] += gains['today']
