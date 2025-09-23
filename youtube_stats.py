@@ -65,37 +65,47 @@ class YouTubeStats:
         return today_key, yesterday_key, week_key
 
     def _update_and_get_subs_gains(self, channel_id: str, current_subs: int):
-        """Обновляет базовые значения и возвращает прирост подписчиков по периодам.
+        """Обновляет базовые значения и возвращает прирост подписчиков по периодам (UTC).
 
-        Примечание: прирост корректно отобразится только после первого сохранения базового значения.
-        На первом запуске будет 0.
+        Логика:
+        - baseline_today_subs — значение на начало текущего дня
+        - baseline_week_subs — значение на начало текущей недели (понедельник 00:00 UTC)
+        - снимок "вчера" сохраняется при смене дня как прежний baseline_today_subs
         """
         today_key, yesterday_key, week_key = self._get_period_keys()
 
         ch = self._subs_store.setdefault("channels", {}).setdefault(channel_id, {})
 
-        # Инициализация базовых значений, если отсутствуют
+        # При смене дня переносим вчерашний срез до перезаписи baseline_today
+        if ch.get("baseline_today_key") and ch.get("baseline_today_key") != today_key:
+            prev_today_key = ch.get("baseline_today_key")
+            prev_today_subs = int(ch.get("baseline_today_subs", current_subs))
+            # Сохраняем baseline вчера, только если нет сохраненного
+            if yesterday_key not in ch:
+                ch[yesterday_key] = prev_today_subs
+
+        # Инициализация/обновление baseline сегодня
         if ch.get("baseline_today_key") != today_key:
             ch["baseline_today_key"] = today_key
-            ch["baseline_today_subs"] = current_subs
+            ch["baseline_today_subs"] = int(current_subs)
 
-        if ch.get("baseline_yesterday_key") != yesterday_key and yesterday_key not in ch:
-            # Сохраним снэпшот на вчера, если его нет
-            ch[yesterday_key] = current_subs
-
+        # Инициализация/обновление baseline недели
         if ch.get("baseline_week_key") != week_key:
             ch["baseline_week_key"] = week_key
-            ch["baseline_week_subs"] = current_subs
+            ch["baseline_week_subs"] = int(current_subs)
 
         # Вычисления прироста
-        today_gain = max(0, current_subs - int(ch.get("baseline_today_subs", current_subs)))
-        week_gain = max(0, current_subs - int(ch.get("baseline_week_subs", current_subs)))
-        # Для вчера используем сохранённое значение на вчерашний день, если есть
+        baseline_today = int(ch.get("baseline_today_subs", current_subs))
+        baseline_week = int(ch.get("baseline_week_subs", current_subs))
+        today_gain = max(0, int(current_subs) - baseline_today)
+        week_gain = max(0, int(current_subs) - baseline_week)
+
+        # Вчера = baseline сегодня - baseline вчера (если есть), иначе 0
         yesterday_baseline = ch.get(yesterday_key)
         if yesterday_baseline is None:
             yesterday_gain = 0
         else:
-            yesterday_gain = max(0, current_subs - int(yesterday_baseline))
+            yesterday_gain = max(0, baseline_today - int(yesterday_baseline))
 
         self._save_subs_store()
 
