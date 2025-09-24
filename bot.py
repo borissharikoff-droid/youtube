@@ -13,6 +13,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Формирует ссылку на канал: по @username или по channel_id
+def build_channel_link(channel: dict) -> str:
+    channel_username = channel.get('username', '') or ''
+    channel_id = channel.get('channel_id', '') or ''
+    if channel_username:
+        # Ожидается формат с @, но поддержим и без него
+        return f"https://www.youtube.com/{channel_username}"
+    if channel_id:
+        return f"https://www.youtube.com/channel/{channel_id}"
+    return ""
+
 # Проверяем конфигурацию при запуске
 try:
     logger.info("Starting YouTube Stats Bot for Railway...")
@@ -132,9 +143,8 @@ class YouTubeStatsBot:
             channel_links = []
             for channel in config.CHANNELS:
                 channel_name = channel['name']
-                channel_username = channel.get('username', '')
-                if channel_username:
-                    channel_link = f"https://www.youtube.com/{channel_username}"
+                channel_link = build_channel_link(channel)
+                if channel_link:
                     channel_links.append(f"[{channel_name}]({channel_link})")
                 else:
                     channel_links.append(channel_name)
@@ -206,8 +216,15 @@ class YouTubeStatsBot:
                 videos = channel_data['videos']
                 
                 # Формируем гиперссылку на канал
+                channel_link = ''
                 if channel_username:
                     channel_link = f"https://www.youtube.com/{channel_username}"
+                # Попытка собрать ссылку по channel_id, если username нет в данных
+                if not channel_link:
+                    channel_id = channel_data.get('channel_id', '')
+                    if channel_id:
+                        channel_link = f"https://www.youtube.com/channel/{channel_id}"
+                if channel_link:
                     message += f"📊 [{channel_name}]({channel_link}) - Статистика за сегодня\n\n"
                 else:
                     message += f"📊 {channel_name} - Статистика за сегодня\n\n"
