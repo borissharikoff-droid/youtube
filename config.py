@@ -39,7 +39,7 @@ CHANNELS = [
         "username": "@primefuelnutrition"
     },
     {
-        "name": "UC3K9wUP4FyhWgsubQGvt6Bg",
+        "name": "vanessalibran",
         "channel_id": "UC3K9wUP4FyhWgsubQGvt6Bg",
         "username": ""
     }
