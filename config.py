@@ -37,6 +37,11 @@ CHANNELS = [
         "name": "Prime Fuel Nutrition",
         "channel_id": "UCpvd8ytFLL2E8Zgg6M0_itA",
         "username": "@primefuelnutrition"
+    },
+    {
+        "name": "UC3K9wUP4FyhWgsubQGvt6Bg",
+        "channel_id": "UC3K9wUP4FyhWgsubQGvt6Bg",
+        "username": ""
     }
 ]
 
