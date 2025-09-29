@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import sys
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
@@ -91,7 +91,7 @@ class YouTubeStatsBot:
             
             # Формируем сообщение со сводной статистикой
             message = "📊 **Статистика по отслеживаемым каналам:**\n\n"
-            now_utc = datetime.now(datetime.UTC)
+            now_utc = datetime.now(timezone.utc)
             today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
             yesterday_date = (today_start - timedelta(days=1)).date()
             
