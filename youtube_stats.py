@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 class YouTubeStats:
     def __init__(self):
         try:
-            self.youtube = build('youtube', 'v3', developerKey=config.YOUTUBE_API_KEY)
+            self._api_keys: List[str] = [k for k in [config.YOUTUBE_API_KEY, getattr(config, 'YOUTUBE_API_KEY_2', None)] if k]
+            self._api_key_index = 0
+            self.youtube = build('youtube', 'v3', developerKey=self._api_keys[self._api_key_index])
             logger.info("YouTube API client initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize YouTube API client: {e}")
@@ -23,6 +25,22 @@ class YouTubeStats:
         # Файл для хранения базовых значений подписчиков по периодам
         self._subs_store_file = "subs_history.json"
         self._load_subs_store()
+
+    def _rotate_api_key_and_rebuild(self) -> bool:
+        """Переключает ключ на следующий и пересоздаёт клиент. Возвращает True, если ключ сменился."""
+        if len(self._api_keys) <= 1:
+            return False
+        self._api_key_index = (self._api_key_index + 1) % len(self._api_keys)
+        try:
+            self.youtube = build('youtube', 'v3', developerKey=self._api_keys[self._api_key_index])
+            logger.info("Rotated YouTube API key and rebuilt client")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to rebuild client with rotated key: {e}")
+            return False
+
+    def _is_quota_exceeded(self, error: Exception) -> bool:
+        return 'quota' in str(error).lower() and 'exceed' in str(error).lower()
     
     def _get_cached_data(self, key):
         """Получает данные из кэша"""
@@ -73,6 +91,18 @@ class YouTubeStats:
                     return channel_id
             except Exception as e:
                 logger.info(f"forHandle lookup failed for {handle_value}: {e}")
+                if self._is_quota_exceeded(e) and self._rotate_api_key_and_rebuild():
+                    try:
+                        direct_resp = self.youtube.channels().list(
+                            part='id,snippet',
+                            forHandle=handle_value
+                        ).execute()
+                        if direct_resp.get('items'):
+                            channel_id = direct_resp['items'][0]['id']
+                            self._set_cached_data(cache_key, channel_id)
+                            return channel_id
+                    except Exception:
+                        pass
             
             # Метод 1: Прямой поиск по username
             search_response = self.youtube.search().list(
@@ -81,6 +111,14 @@ class YouTubeStats:
                 q=clean_username,
                 maxResults=5  # Увеличиваем количество результатов
             ).execute()
+            # При квоте попробуем второй ключ
+            if not search_response and self._rotate_api_key_and_rebuild():
+                try:
+                    search_response = self.youtube.search().list(
+                        part='snippet', type='channel', q=clean_username, maxResults=5
+                    ).execute()
+                except Exception:
+                    search_response = None
             
             if search_response.get('items'):
                 # Ищем точное совпадение по username
@@ -112,6 +150,13 @@ class YouTubeStats:
                 q=f"@{clean_username}",
                 maxResults=3
             ).execute()
+            if not alt_search_response and self._rotate_api_key_and_rebuild():
+                try:
+                    alt_search_response = self.youtube.search().list(
+                        part='snippet', type='channel', q=f"@{clean_username}", maxResults=3
+                    ).execute()
+                except Exception:
+                    alt_search_response = None
             
             if alt_search_response.get('items'):
                 channel_id = alt_search_response['items'][0]['id']['channelId']
@@ -254,6 +299,25 @@ class YouTubeStats:
             return result
         except Exception as e:
             logger.error(f"Error fetching channel stats for {channel_id}: {e}")
+            if self._is_quota_exceeded(e) and self._rotate_api_key_and_rebuild():
+                try:
+                    channel_response = self.youtube.channels().list(
+                        part='statistics,snippet', id=channel_id
+                    ).execute()
+                    if channel_response.get('items'):
+                        channel_info = channel_response['items'][0]
+                        channel_name = channel_info['snippet']['title']
+                        stats = channel_info['statistics']
+                        result = {
+                            'name': channel_name,
+                            'subscribers': int(stats.get('subscriberCount', 0)),
+                            'total_views': int(stats.get('viewCount', 0)),
+                            'total_videos': int(stats.get('videoCount', 0))
+                        }
+                        self._set_cached_data(f"channel_stats_{channel_id}", result)
+                        return result
+                except Exception as e2:
+                    logger.error(f"Retry after rotate failed: {e2}")
             return None
     
     def get_videos_for_period(self, channel_id, start_date, end_date, username=None):
@@ -291,6 +355,16 @@ class YouTubeStats:
                     maxResults=50,
                     pageToken=next_page
                 ).execute()
+                # rotate on quota
+                if not search_response and self._rotate_api_key_and_rebuild():
+                    try:
+                        search_response = self.youtube.search().list(
+                            part='id,snippet', channelId=channel_id, order='date', type='video',
+                            publishedAfter=start_date.isoformat() + 'Z',
+                            publishedBefore=end_date.isoformat() + 'Z', maxResults=50, pageToken=next_page
+                        ).execute()
+                    except Exception:
+                        search_response = {'items': []}
 
                 page_video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
                 if not page_video_ids:
@@ -303,6 +377,11 @@ class YouTubeStats:
                         part='statistics,snippet',
                         id=','.join(chunk)
                     ).execute()
+                    if not videos_info and self._rotate_api_key_and_rebuild():
+                        try:
+                            videos_info = self.youtube.videos().list(part='statistics,snippet', id=','.join(chunk)).execute()
+                        except Exception:
+                            videos_info = {'items': []}
 
                     for video in videos_info.get('items', []):
                         stats = video['statistics']

@@ -12,8 +12,10 @@ def _require_env(var_name: str) -> str:
 # Telegram Bot Token (required)
 TELEGRAM_TOKEN = _require_env("TELEGRAM_TOKEN")
 
-# YouTube API Key (required)
+# YouTube API Keys
 YOUTUBE_API_KEY = _require_env("YOUTUBE_API_KEY")
+# Optional second key for rotation
+YOUTUBE_API_KEY_2 = os.getenv("YOUTUBE_API_KEY_2")
 
 # Admin ID (required)
 ADMIN_ID = int(_require_env("ADMIN_ID"))
