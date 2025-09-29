@@ -37,7 +37,13 @@ class YouTubeStats:
         self._cache[key] = (time.time(), data)
     
     def _resolve_channel_id_by_username(self, username: str) -> str:
-        """Определяет channel_id по username через YouTube API"""
+        """Определяет channel_id по username/@handle через YouTube Data API v3.
+
+        Приоритет:
+        1) channels.list(forHandle='@handle')
+        2) search.list(type='channel', q=handle)
+        3) search.list(q='@handle')
+        """
         if not username:
             return ""
         
@@ -52,6 +58,21 @@ class YouTubeStats:
         
         try:
             logger.info(f"Resolving channel_id for username: {clean_username}")
+            handle_value = f"@{clean_username}"
+
+            # Попытка 1: прямой lookup по handle
+            try:
+                direct_resp = self.youtube.channels().list(
+                    part='id,snippet',
+                    forHandle=handle_value
+                ).execute()
+                if direct_resp.get('items'):
+                    channel_id = direct_resp['items'][0]['id']
+                    logger.info(f"Found channel_id {channel_id} via forHandle for {handle_value}")
+                    self._set_cached_data(cache_key, channel_id)
+                    return channel_id
+            except Exception as e:
+                logger.info(f"forHandle lookup failed for {handle_value}: {e}")
             
             # Метод 1: Прямой поиск по username
             search_response = self.youtube.search().list(
@@ -66,7 +87,7 @@ class YouTubeStats:
                 for item in search_response['items']:
                     channel_snippet = item['snippet']
                     channel_title = channel_snippet.get('title', '').lower()
-                    channel_custom_url = channel_snippet.get('customUrl', '').lower()
+                    channel_custom_url = channel_snippet.get('customUrl', '').lower() if channel_snippet else ""
                     
                     # Проверяем точное совпадение username
                     if (clean_username.lower() in channel_title or 
