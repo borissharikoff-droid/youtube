@@ -48,12 +48,12 @@ CHANNELS = [
     },
     {
         "name": "LongQuachThuy",
-        "channel_id": "",
+        "channel_id": "UChxGGarAwE9lWlnoNKnmoUw",
         "username": "@LongQuachThuy-b9l8b"
     },
     {
         "name": "HaDangMinh",
-        "channel_id": "",
+        "channel_id": "UCwSQVMelX48iJmYsUwXSEpg",
         "username": "@HaDangMinh-t7j9g"
     }
 ]
