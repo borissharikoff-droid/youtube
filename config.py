@@ -45,6 +45,16 @@ CHANNELS = [
         "name": "vanessalibran",
         "channel_id": "UC3K9wUP4FyhWgsubQGvt6Bg",
         "username": ""
+    },
+    {
+        "name": "LongQuachThuy",
+        "channel_id": "",
+        "username": "@LongQuachThuy-b9l8b"
+    },
+    {
+        "name": "HaDangMinh",
+        "channel_id": "",
+        "username": "@HaDangMinh-t7j9g"
     }
 ]
 

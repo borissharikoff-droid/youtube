@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta
 import sys
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
@@ -90,6 +91,11 @@ class YouTubeStatsBot:
             
             # Формируем сообщение со сводной статистикой
             message = "📊 **Статистика по отслеживаемым каналам:**\n\n"
+            now_utc = datetime.utcnow()
+            today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+            yesterday_date = (today_start - timedelta(days=1)).date()
+            week_start_date = (now_utc - timedelta(days=7)).date()
+            week_end_date = now_utc.date()
             message += (
                 f"За сегодня: {summary_stats['today']['views']:,}👁️ | "
                 f"{summary_stats['today']['likes']:,}👍 | {summary_stats['today']['comments']:,}💬 | "
@@ -110,7 +116,7 @@ class YouTubeStatsBot:
             # Проверяем наличие данных за вчера
             if 'yesterday' in summary_stats and summary_stats['yesterday']:
                 message += (
-                    f"\nЗа вчера: {summary_stats['yesterday']['views']:,}👁️ | "
+                    f"\nЗа вчера (UTC {yesterday_date}): {summary_stats['yesterday']['views']:,}👁️ | "
                     f"{summary_stats['yesterday']['likes']:,}👍 | {summary_stats['yesterday']['comments']:,}💬 | "
                     f"+{summary_stats['yesterday'].get('subs_gain', 0):,}👤 | {summary_stats['yesterday'].get('video_count', 0):,}🎬\n"
                 )
@@ -126,7 +132,7 @@ class YouTubeStatsBot:
                 message += f"\nЗа вчера: Данные временно недоступны\n"
             
             message += (
-                f"\nЗа неделю: {summary_stats['week']['views']:,}👁️ | "
+                f"\nЗа неделю (UTC {week_start_date} — {week_end_date}): {summary_stats['week']['views']:,}👁️ | "
                 f"{summary_stats['week']['likes']:,}👍 | {summary_stats['week']['comments']:,}💬 | "
                 f"+{summary_stats['week'].get('subs_gain', 0):,}👤 | {summary_stats['week'].get('video_count', 0):,}🎬\n"
             )
