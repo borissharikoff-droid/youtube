@@ -94,8 +94,11 @@ class YouTubeStatsBot:
             now_utc = datetime.utcnow()
             today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
             yesterday_date = (today_start - timedelta(days=1)).date()
-            week_start_date = (now_utc - timedelta(days=7)).date()
-            week_end_date = now_utc.date()
+            
+            # Неделя с понедельника по воскресенье
+            current_weekday = now_utc.weekday()  # 0=понедельник, 6=воскресенье
+            week_start_date = (today_start - timedelta(days=current_weekday)).date()
+            week_end_date = (week_start_date + timedelta(days=6)).date()
             message += (
                 f"За сегодня: {summary_stats['today']['views']:,}👁️ | "
                 f"{summary_stats['today']['likes']:,}👍 | {summary_stats['today']['comments']:,}💬 | "

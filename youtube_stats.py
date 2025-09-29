@@ -321,8 +321,9 @@ class YouTubeStats:
         elif days == 2:  # Вчера
             start_date = (end_date - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
             end_date = start_date + timedelta(days=1)
-        elif days == 7:  # Неделя
-            start_date = end_date - timedelta(days=7)
+        elif days == 7:  # Неделя (с понедельника по воскресенье)
+            current_weekday = end_date.weekday()  # 0=понедельник, 6=воскресенье
+            start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=current_weekday)
         else:  # Все время
             start_date = datetime(2020, 1, 1)
         
@@ -478,7 +479,10 @@ class YouTubeStats:
             today_start = current_utc.replace(hour=0, minute=0, second=0, microsecond=0)
             yesterday_start = today_start - timedelta(days=1)
             yesterday_end = today_start
-            week_start = current_utc - timedelta(days=7)
+            
+            # Неделя с понедельника по воскресенье
+            current_weekday = current_utc.weekday()  # 0=понедельник, 6=воскресенье
+            week_start = today_start - timedelta(days=current_weekday)
             
             for channel in config.CHANNELS:
                 channel_id = channel['channel_id']
