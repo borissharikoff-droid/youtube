@@ -35,6 +35,44 @@ class YouTubeStats:
     def _set_cached_data(self, key, data):
         """Сохраняет данные в кэш"""
         self._cache[key] = (time.time(), data)
+    
+    def _resolve_channel_id_by_username(self, username: str) -> str:
+        """Определяет channel_id по username через YouTube API"""
+        if not username:
+            return ""
+        
+        # Убираем @ если есть
+        clean_username = username.lstrip('@')
+        cache_key = f"channel_id_{clean_username}"
+        
+        # Проверяем кэш
+        cached = self._get_cached_data(cache_key)
+        if cached:
+            return cached
+        
+        try:
+            logger.info(f"Resolving channel_id for username: {clean_username}")
+            
+            # Ищем канал по username
+            search_response = self.youtube.search().list(
+                part='snippet',
+                type='channel',
+                q=clean_username,
+                maxResults=1
+            ).execute()
+            
+            if search_response.get('items'):
+                channel_id = search_response['items'][0]['id']['channelId']
+                logger.info(f"Found channel_id {channel_id} for username {clean_username}")
+                self._set_cached_data(cache_key, channel_id)
+                return channel_id
+            else:
+                logger.warning(f"No channel found for username: {clean_username}")
+                return ""
+                
+        except Exception as e:
+            logger.error(f"Error resolving channel_id for {clean_username}: {e}")
+            return ""
 
     def _load_subs_store(self):
         """Загружает или инициализирует хранилище подписчиков"""
@@ -119,8 +157,19 @@ class YouTubeStats:
         """Разбивает список на чанки фиксированного размера"""
         return [items[i:i + chunk_size] for i in range(0, len(items), chunk_size)]
     
-    def get_channel_stats(self, channel_id):
+    def get_channel_stats(self, channel_id, username=None):
         """Получает статистику канала с кэшированием"""
+        # Если channel_id пуст, пытаемся определить по username
+        if not channel_id and username:
+            channel_id = self._resolve_channel_id_by_username(username)
+            if not channel_id:
+                logger.warning(f"Could not resolve channel_id for username: {username}")
+                return None
+        
+        if not channel_id:
+            logger.warning("No channel_id provided and no username to resolve")
+            return None
+            
         cache_key = f"channel_stats_{channel_id}"
         cached = self._get_cached_data(cache_key)
         if cached:
@@ -155,8 +204,19 @@ class YouTubeStats:
             logger.error(f"Error fetching channel stats for {channel_id}: {e}")
             return None
     
-    def get_videos_for_period(self, channel_id, start_date, end_date):
+    def get_videos_for_period(self, channel_id, start_date, end_date, username=None):
         """Получает ВСЕ видео за период с пагинацией и кэшированием"""
+        # Если channel_id пуст, пытаемся определить по username
+        if not channel_id and username:
+            channel_id = self._resolve_channel_id_by_username(username)
+            if not channel_id:
+                logger.warning(f"Could not resolve channel_id for username: {username}")
+                return []
+        
+        if not channel_id:
+            logger.warning("No channel_id provided and no username to resolve")
+            return []
+            
         cache_key = f"videos_{channel_id}_{start_date.date()}_{end_date.date()}"
         cached = self._get_cached_data(cache_key)
         if cached:
@@ -252,7 +312,7 @@ class YouTubeStats:
             logger.error(f"Error fetching videos for channel {channel_id}: {e}")
             return []
     
-    def get_recent_videos(self, channel_id, days=1):
+    def get_recent_videos(self, channel_id, days=1, username=None):
         """Получает видео за последние N дней"""
         end_date = datetime.utcnow()
         
@@ -266,7 +326,7 @@ class YouTubeStats:
         else:  # Все время
             start_date = datetime(2020, 1, 1)
         
-        return self.get_videos_for_period(channel_id, start_date, end_date)
+        return self.get_videos_for_period(channel_id, start_date, end_date, username)
     
     def get_daily_stats(self):
         """Получает статистику за день по всем каналам (улучшенная версия)"""
@@ -276,12 +336,12 @@ class YouTubeStats:
         
         for channel in config.CHANNELS:
             try:
-                channel_stats = self.get_channel_stats(channel['channel_id'])
+                channel_stats = self.get_channel_stats(channel['channel_id'], channel.get('username'))
                 if not channel_stats:
                     continue
 
                 today_end = today_start + timedelta(days=1)
-                today_videos = self.get_videos_for_period(channel['channel_id'], today_start, today_end)
+                today_videos = self.get_videos_for_period(channel['channel_id'], today_start, today_end, channel.get('username'))
 
                 total_views = sum(v['views'] for v in today_videos)
                 total_likes = sum(v['likes'] for v in today_videos)
@@ -308,11 +368,11 @@ class YouTubeStats:
         period_stats = []
         
         for channel in config.CHANNELS:
-            channel_stats = self.get_channel_stats(channel['channel_id'])
+            channel_stats = self.get_channel_stats(channel['channel_id'], channel.get('username'))
             if not channel_stats:
                 continue
             
-            videos = self.get_recent_videos(channel['channel_id'], days=days)
+            videos = self.get_recent_videos(channel['channel_id'], days=days, username=channel.get('username'))
             
             # Считаем общую статистику за период
             total_views = sum(video['views'] for video in videos)
@@ -331,8 +391,19 @@ class YouTubeStats:
         
         return period_stats
     
-    def get_recent_channel_videos(self, channel_id, limit=50):
+    def get_recent_channel_videos(self, channel_id, limit=50, username=None):
         """Получает последние видео канала для анализа статистики"""
+        # Если channel_id пуст, пытаемся определить по username
+        if not channel_id and username:
+            channel_id = self._resolve_channel_id_by_username(username)
+            if not channel_id:
+                logger.warning(f"Could not resolve channel_id for username: {username}")
+                return []
+        
+        if not channel_id:
+            logger.warning("No channel_id provided and no username to resolve")
+            return []
+            
         cache_key = f"recent_videos_{channel_id}_{limit}"
         cached = self._get_cached_data(cache_key)
         if cached:
@@ -415,7 +486,7 @@ class YouTubeStats:
                 
                 logger.info(f"Processing channel: {channel_name} ({channel_id})")
                 
-                channel_stats = self.get_channel_stats(channel_id)
+                channel_stats = self.get_channel_stats(channel_id, channel.get('username'))
                 if not channel_stats:
                     logger.warning(f"Failed to get stats for channel: {channel_name}")
                     continue
@@ -425,9 +496,9 @@ class YouTubeStats:
                 yesterday_end = today_start
                 
                 # Получаем видео за каждый период отдельно
-                today_videos = self.get_videos_for_period(channel_id, today_start, today_end)
-                yesterday_videos = self.get_videos_for_period(channel_id, yesterday_start, yesterday_end)
-                week_videos = self.get_videos_for_period(channel_id, week_start, current_utc)
+                today_videos = self.get_videos_for_period(channel_id, today_start, today_end, channel.get('username'))
+                yesterday_videos = self.get_videos_for_period(channel_id, yesterday_start, yesterday_end, channel.get('username'))
+                week_videos = self.get_videos_for_period(channel_id, week_start, current_utc, channel.get('username'))
                 
                 all_channels_data[channel['name']] = {
                     'channel_stats': channel_stats,
@@ -536,7 +607,7 @@ class YouTubeStats:
                 channel_id = channel['channel_id']
                 
                 # Получаем последние видео канала
-                recent_videos = self.get_recent_channel_videos(channel_id, 50)
+                recent_videos = self.get_recent_channel_videos(channel_id, 50, channel.get('username'))
                 
                 for video in recent_videos:
                     pub_date = video['published_datetime'].replace(tzinfo=None)
@@ -579,7 +650,7 @@ class YouTubeStats:
                 
                 try:
                     # Получаем последние видео канала
-                    recent_videos = self.get_recent_channel_videos(channel_id, 50)
+                    recent_videos = self.get_recent_channel_videos(channel_id, 50, channel.get('username'))
                     
                     # Фильтруем и считаем статистику по периодам
                     today_views = today_likes = today_comments = 0
