@@ -27,9 +27,12 @@ API_QUOTA_PER_REQUEST = {
     'commentThreads.list': 1
 }
 
-# Лимиты запросов для пользователей
-DAILY_REQUEST_LIMIT = 100  # Максимум запросов в день на пользователя
-REQUEST_COOLDOWN = 10  # 10 секунд между запросами
+# Лимиты запросов для пользователей (сохраняем текущие значения)
+DAILY_REQUEST_LIMIT = 15  # Максимум запросов в день на пользователя
+REQUEST_COOLDOWN = 120  # 2 минуты между запросами
+
+# Путь к базе данных
+DATABASE_PATH = os.getenv("DATABASE_PATH", "youtube_tracker.db")
 
 # Список каналов для мониторинга
 CHANNELS = [
