@@ -263,6 +263,43 @@ class YouTubeStatsBot:
             logger.error(f"Ошибка при получении статистики: {e}")
             await update.message.reply_text(get_error_message(e))
     
+    async def test_channels_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /test_channels - тестирует поиск каналов"""
+        user_id = update.effective_user.id
+        
+        # Только для админа
+        if user_id != config.ADMIN_ID:
+            await update.message.reply_text("❌ Эта команда доступна только администратору.")
+            return
+        
+        try:
+            message = "🔍 **Тестирование поиска каналов:**\n\n"
+            
+            for channel in config.CHANNELS:
+                channel_name = channel['name']
+                channel_id = channel.get('channel_id', '')
+                username = channel.get('username', '')
+                
+                message += f"📺 **{channel_name}**\n"
+                message += f"• channel_id: `{channel_id or 'НЕТ'}`\n"
+                message += f"• username: `{username or 'НЕТ'}`\n"
+                
+                if not channel_id and username:
+                    # Тестируем поиск
+                    resolved_id = self.youtube_stats._resolve_channel_id_by_username(username)
+                    if resolved_id:
+                        message += f"• ✅ Найден: `{resolved_id}`\n"
+                    else:
+                        message += f"• ❌ Не найден\n"
+                
+                message += "\n"
+            
+            await update.message.reply_text(message, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Ошибка при тестировании каналов: {e}")
+            await update.message.reply_text(f"❌ Ошибка: {str(e)}")
+    
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /help"""
         
@@ -272,6 +309,7 @@ class YouTubeStatsBot:
 **Команды:**
 /start - Главное меню со статистикой
 /stats - Детальная статистика за сегодня
+/test_channels - Тестирование поиска каналов (админ)
 /help - Показать это сообщение
 
 **Статистика включает:**
@@ -309,6 +347,7 @@ def main():
         logger.info("Adding command handlers...")
         application.add_handler(CommandHandler("start", bot.start))
         application.add_handler(CommandHandler("stats", bot.stats))
+        application.add_handler(CommandHandler("test_channels", bot.test_channels_command))
         application.add_handler(CommandHandler("help", bot.help_command))
         logger.info("All handlers added successfully")
         

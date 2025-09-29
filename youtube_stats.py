@@ -53,22 +53,53 @@ class YouTubeStats:
         try:
             logger.info(f"Resolving channel_id for username: {clean_username}")
             
-            # Ищем канал по username
+            # Метод 1: Прямой поиск по username
             search_response = self.youtube.search().list(
                 part='snippet',
                 type='channel',
                 q=clean_username,
-                maxResults=1
+                maxResults=5  # Увеличиваем количество результатов
             ).execute()
             
             if search_response.get('items'):
+                # Ищем точное совпадение по username
+                for item in search_response['items']:
+                    channel_snippet = item['snippet']
+                    channel_title = channel_snippet.get('title', '').lower()
+                    channel_custom_url = channel_snippet.get('customUrl', '').lower()
+                    
+                    # Проверяем точное совпадение username
+                    if (clean_username.lower() in channel_title or 
+                        clean_username.lower() == channel_custom_url or
+                        f"@{clean_username.lower()}" == channel_custom_url):
+                        channel_id = item['id']['channelId']
+                        logger.info(f"Found channel_id {channel_id} for username {clean_username}")
+                        self._set_cached_data(cache_key, channel_id)
+                        return channel_id
+                
+                # Если точного совпадения нет, берем первый результат
                 channel_id = search_response['items'][0]['id']['channelId']
-                logger.info(f"Found channel_id {channel_id} for username {clean_username}")
+                logger.info(f"Using first result channel_id {channel_id} for username {clean_username}")
                 self._set_cached_data(cache_key, channel_id)
                 return channel_id
-            else:
-                logger.warning(f"No channel found for username: {clean_username}")
-                return ""
+            
+            # Метод 2: Попробуем поиск по полному URL
+            logger.info(f"Trying alternative search for username: {clean_username}")
+            alt_search_response = self.youtube.search().list(
+                part='snippet',
+                type='channel',
+                q=f"@{clean_username}",
+                maxResults=3
+            ).execute()
+            
+            if alt_search_response.get('items'):
+                channel_id = alt_search_response['items'][0]['id']['channelId']
+                logger.info(f"Found channel_id {channel_id} for @{clean_username}")
+                self._set_cached_data(cache_key, channel_id)
+                return channel_id
+            
+            logger.warning(f"No channel found for username: {clean_username}")
+            return ""
                 
         except Exception as e:
             logger.error(f"Error resolving channel_id for {clean_username}: {e}")
