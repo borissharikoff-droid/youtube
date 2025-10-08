@@ -47,10 +47,21 @@ CHANNELS = [
         "name": "Human Thread Story (cutli)",
         "channel_id": "UCwSQVMelX48iJmYsUwXSEpg",
         "username": "@HaDangMinh-t7j9g"
+    },
+    {
+        "name": "Фильмы (MININ)",
+        "channel_id": "",
+        "username": "@MININ-q1t"
+    },
+    {
+        "name": "Бизнес.подкасты (VTOROJJJ)",
+        "channel_id": "",
+        "username": "@VTOROJJJ"
     }
 ]
 
 # Обновлено: 2025-01-27 - переименованы каналы и удалены Prime Fuel Nutrition и vanessalibran
+# Обновлено: 2025-01-27 - добавлены каналы "Фильмы (MININ)" и "Бизнес.подкасты (VTOROJJJ)"
 
 # ИСКЛЮЧЕННЫЕ КАНАЛЫ (пример формата):
 # CHANNELS = [
