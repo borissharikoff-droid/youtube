@@ -39,28 +39,18 @@ DATABASE_PATH = os.getenv("DATABASE_PATH", "youtube_tracker.db")
 # Список каналов для мониторинга
 CHANNELS = [
     {
-        "name": "Prime Fuel Nutrition",
-        "channel_id": "UCpvd8ytFLL2E8Zgg6M0_itA",
-        "username": "@primefuelnutrition"
-    },
-    {
-        "name": "vanessalibran",
-        "channel_id": "UC3K9wUP4FyhWgsubQGvt6Bg",
-        "username": ""
-    },
-    {
-        "name": "LongQuachThuy",
+        "name": "TrueBeasts Journal (lumari)",
         "channel_id": "UChxGGarAwE9lWlnoNKnmoUw",
         "username": "@LongQuachThuy-b9l8b"
     },
     {
-        "name": "HaDangMinh",
+        "name": "Human Thread Story (cutli)",
         "channel_id": "UCwSQVMelX48iJmYsUwXSEpg",
         "username": "@HaDangMinh-t7j9g"
     }
 ]
 
-# Обновлено: 2025-01-27 - добавлен канал Prime Fuel Nutrition
+# Обновлено: 2025-01-27 - переименованы каналы и удалены Prime Fuel Nutrition и vanessalibran
 
 # ИСКЛЮЧЕННЫЕ КАНАЛЫ (пример формата):
 # CHANNELS = [
