@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import json
 import os
 import config
+from channel_manager import channel_manager
 import time
 import logging
 from typing import List
@@ -466,7 +467,7 @@ class YouTubeStats:
         current_utc = datetime.utcnow()
         today_start = current_utc.replace(hour=0, minute=0, second=0, microsecond=0)
         
-        for channel in config.CHANNELS:
+        for channel in channel_manager.get_channels():
             try:
                 channel_stats = self.get_channel_stats(channel['channel_id'], channel.get('username'))
                 if not channel_stats:
@@ -499,7 +500,7 @@ class YouTubeStats:
         """Получает статистику за указанный период по всем каналам"""
         period_stats = []
         
-        for channel in config.CHANNELS:
+        for channel in channel_manager.get_channels():
             channel_stats = self.get_channel_stats(channel['channel_id'], channel.get('username'))
             if not channel_stats:
                 continue
@@ -615,7 +616,7 @@ class YouTubeStats:
             current_weekday = current_utc.weekday()  # 0=понедельник, 6=воскресенье
             week_start = today_start - timedelta(days=current_weekday)
             
-            for channel in config.CHANNELS:
+            for channel in channel_manager.get_channels():
                 channel_id = channel['channel_id']
                 channel_name = channel['name']
                 
@@ -697,8 +698,10 @@ class YouTubeStats:
                 summary['all_time']['videos'] += int(data['channel_stats'].get('total_videos', 0) or 0)
 
                 # Прирост подписчиков
+                channels = channel_manager.get_channels()
+                channel_id = channels[[c['name'] for c in channels].index(channel_name)]['channel_id']
                 gains = self._update_and_get_subs_gains(
-                    channel_id=config.CHANNELS[[c['name'] for c in config.CHANNELS].index(channel_name)]['channel_id'],
+                    channel_id=channel_id,
                     current_subs=int(data['channel_stats'].get('subscribers', 0) or 0)
                 )
                 summary['today']['subs_gain'] += gains['today']
@@ -738,7 +741,7 @@ class YouTubeStats:
             current_utc = datetime.utcnow()
             today_start = current_utc.replace(hour=0, minute=0, second=0, microsecond=0)
             
-            for channel in config.CHANNELS:
+            for channel in channel_manager.get_channels():
                 channel_id = channel['channel_id']
                 
                 # Получаем последние видео канала
@@ -778,7 +781,7 @@ class YouTubeStats:
             today_start = current_utc.replace(hour=0, minute=0, second=0, microsecond=0)
             yesterday_start = today_start - timedelta(days=1)
             
-            for channel in config.CHANNELS:
+            for channel in channel_manager.get_channels():
                 channel_id = channel['channel_id']
                 channel_name = channel['name']
                 channel_username = channel.get('username', '')
@@ -900,7 +903,7 @@ class YouTubeStats:
             issues.append(f"API подключение: {api_message}")
         
         # Тестируем доступ к каждому каналу
-        for channel in config.CHANNELS:
+        for channel in channel_manager.get_channels():
             channel_id = channel['channel_id']
             channel_name = channel['name']
             

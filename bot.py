@@ -1,11 +1,13 @@
 import logging
 from datetime import datetime, timedelta, timezone
 import sys
+import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
+from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
 import config
 from youtube_stats import YouTubeStats
 from request_tracker import RequestTracker
+from channel_manager import channel_manager
 
 # Настройка логирования
 logging.basicConfig(
@@ -144,13 +146,14 @@ class YouTubeStatsBot:
                 f"{summary_stats['all_time']['likes']:,}👍 | {summary_stats['all_time']['comments']:,}💬 | "
                 f"{summary_stats['all_time'].get('subscribers', 0):,}👤 | {summary_stats['all_time'].get('videos', 0):,}🎬\n\n"
             )
-            message += f"Каналов отслеживается: {len(config.CHANNELS)}\n\n"
+            channels = channel_manager.get_channels()
+            message += f"Каналов отслеживается: {len(channels)}\n\n"
             
             # Убираем строку с количеством запросов по просьбе пользователя
             
             # Добавляем список каналов с гиперссылками
             channel_links = []
-            for channel in config.CHANNELS:
+            for channel in channels:
                 channel_name = channel['name']
                 channel_link = build_channel_link(channel)
                 if channel_link:
@@ -160,15 +163,11 @@ class YouTubeStatsBot:
             
             message += f"({', '.join(channel_links)})"
             
-            # Создаем кнопки
+            # Создаем кнопки управления каналами
             keyboard = [
                 [
-                    InlineKeyboardButton("За сегодня", callback_data="stats_today"),
-                    InlineKeyboardButton("За вчера", callback_data="stats_yesterday")
-                ],
-                [
-                    InlineKeyboardButton("За неделю", callback_data="stats_week"),
-                    InlineKeyboardButton("За все время", callback_data="stats_all_time")
+                    InlineKeyboardButton("➕ Добавить канал", callback_data="add_channel"),
+                    InlineKeyboardButton("➖ Удалить канал", callback_data="remove_channel")
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -330,6 +329,309 @@ class YouTubeStatsBot:
 🚀 **Развернуто на Railway**
         """
         await update.message.reply_text(help_text, parse_mode='Markdown')
+    
+    async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик callback запросов от inline кнопок"""
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = update.effective_user.id
+        
+        # Проверяем права доступа (только админ может управлять каналами)
+        if user_id != config.ADMIN_ID:
+            await query.edit_message_text("❌ Управление каналами доступно только администратору.")
+            return
+        
+        if query.data == "add_channel":
+            await self.show_add_channel_menu(query, context)
+        elif query.data == "remove_channel":
+            await self.show_remove_channel_menu(query, context)
+        elif query.data.startswith("confirm_add_"):
+            await self.confirm_add_channel(query, context)
+        elif query.data.startswith("confirm_remove_"):
+            await self.confirm_remove_channel(query, context)
+        elif query.data == "back_to_main":
+            await self.back_to_main_menu(query, context)
+    
+    async def show_add_channel_menu(self, query, context):
+        """Показывает меню добавления канала"""
+        message = """
+➕ **Добавление канала для отслеживания**
+
+Отправьте мне:
+1. **Название канала** (например: "Мой канал")
+2. **Username канала** (например: @my_channel или my_channel)
+3. **Channel ID** (опционально, если известен)
+
+Пример:
+```
+Название: Тестовый канал
+Username: @test_channel
+```
+
+Или просто отправьте username канала, и я попробую найти его автоматически.
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("🔙 Назад", callback_data="back_to_main")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+        # Устанавливаем состояние ожидания ввода
+        context.user_data['waiting_for_channel_info'] = True
+        context.user_data['action'] = 'add_channel'
+    
+    async def show_remove_channel_menu(self, query, context):
+        """Показывает меню удаления канала"""
+        channels = channel_manager.get_channels()
+        
+        if not channels:
+            message = "❌ Нет каналов для удаления."
+            keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="back_to_main")]]
+        else:
+            message = "➖ **Удаление канала из отслеживания**\n\nВыберите канал для удаления:\n\n"
+            
+            keyboard = []
+            for i, channel in enumerate(channels):
+                channel_name = channel['name']
+                keyboard.append([InlineKeyboardButton(
+                    f"🗑️ {channel_name}", 
+                    callback_data=f"confirm_remove_{i}"
+                )])
+            
+            keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_main")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+    
+    async def confirm_add_channel(self, query, context):
+        """Подтверждает добавление канала"""
+        # Здесь будет логика подтверждения добавления
+        await query.edit_message_text("✅ Канал успешно добавлен!")
+    
+    async def confirm_remove_channel(self, query, context):
+        """Подтверждает удаление канала"""
+        channel_index = int(query.data.split("_")[-1])
+        result = channel_manager.remove_channel(channel_index)
+        
+        if result['success']:
+            await query.edit_message_text(f"✅ {result['message']}")
+        else:
+            await query.edit_message_text(f"❌ {result['message']}")
+    
+    async def handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик текстовых сообщений для добавления каналов"""
+        user_id = update.effective_user.id
+        
+        # Проверяем права доступа
+        if user_id != config.ADMIN_ID:
+            return
+        
+        # Проверяем, ожидаем ли мы информацию о канале
+        if not context.user_data.get('waiting_for_channel_info', False):
+            return
+        
+        action = context.user_data.get('action')
+        if action == 'add_channel':
+            await self.process_channel_info(update, context)
+    
+    async def process_channel_info(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает информацию о канале для добавления"""
+        text = update.message.text.strip()
+        
+        try:
+            # Парсим информацию о канале
+            channel_info = self.parse_channel_info(text)
+            
+            if not channel_info['name']:
+                await update.message.reply_text(
+                    "❌ Не удалось определить название канала. Попробуйте еще раз или отправьте /cancel для отмены."
+                )
+                return
+            
+            # Пытаемся найти channel_id если он не указан
+            if not channel_info['channel_id'] and channel_info['username']:
+                try:
+                    resolved_id = self.youtube_stats._resolve_channel_id_by_username(channel_info['username'])
+                    if resolved_id:
+                        channel_info['channel_id'] = resolved_id
+                        await update.message.reply_text(f"✅ Найден Channel ID: {resolved_id}")
+                except Exception as e:
+                    logger.warning(f"Не удалось найти channel_id для {channel_info['username']}: {e}")
+            
+            # Добавляем канал
+            result = channel_manager.add_channel(
+                name=channel_info['name'],
+                username=channel_info['username'],
+                channel_id=channel_info['channel_id']
+            )
+            
+            if result['success']:
+                # Очищаем состояние ожидания
+                context.user_data.pop('waiting_for_channel_info', None)
+                context.user_data.pop('action', None)
+                
+                # Показываем успешное сообщение с кнопкой возврата
+                keyboard = [[InlineKeyboardButton("🔙 Назад к меню", callback_data="back_to_main")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                message = f"✅ {result['message']}\n\n"
+                channel = result['channel']
+                message += f"📺 **Название:** {channel['name']}\n"
+                if channel['username']:
+                    message += f"👤 **Username:** {channel['username']}\n"
+                if channel['channel_id']:
+                    message += f"🆔 **Channel ID:** {channel['channel_id']}\n"
+                
+                await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+            else:
+                await update.message.reply_text(f"❌ {result['message']}")
+                
+        except Exception as e:
+            logger.error(f"Ошибка при обработке информации о канале: {e}")
+            await update.message.reply_text("❌ Произошла ошибка при добавлении канала. Попробуйте еще раз.")
+    
+    def parse_channel_info(self, text: str) -> dict:
+        """Парсит информацию о канале из текста"""
+        channel_info = {
+            'name': '',
+            'username': '',
+            'channel_id': ''
+        }
+        
+        # Убираем лишние пробелы и переносы строк
+        text = re.sub(r'\s+', ' ', text.strip())
+        
+        # Пытаемся найти структурированную информацию
+        name_match = re.search(r'название[:\s]+(.+?)(?:\n|$)', text, re.IGNORECASE)
+        if name_match:
+            channel_info['name'] = name_match.group(1).strip()
+        
+        username_match = re.search(r'username[:\s]+(.+?)(?:\n|$)', text, re.IGNORECASE)
+        if username_match:
+            channel_info['username'] = username_match.group(1).strip()
+        
+        channel_id_match = re.search(r'channel[_\s]*id[:\s]+(.+?)(?:\n|$)', text, re.IGNORECASE)
+        if channel_id_match:
+            channel_info['channel_id'] = channel_id_match.group(1).strip()
+        
+        # Если структурированной информации нет, пытаемся извлечь из простого текста
+        if not channel_info['name'] and not channel_info['username']:
+            # Проверяем, является ли текст username (начинается с @ или содержит только буквы/цифры/подчеркивания)
+            if re.match(r'^@?[a-zA-Z0-9_-]+$', text):
+                channel_info['username'] = text
+                # Пытаемся извлечь название из username
+                clean_username = text.lstrip('@')
+                channel_info['name'] = clean_username.replace('_', ' ').replace('-', ' ').title()
+            else:
+                # Считаем весь текст названием канала
+                channel_info['name'] = text
+        
+        # Если есть только username, но нет названия
+        if channel_info['username'] and not channel_info['name']:
+            clean_username = channel_info['username'].lstrip('@')
+            channel_info['name'] = clean_username.replace('_', ' ').replace('-', ' ').title()
+        
+        return channel_info
+    
+    async def back_to_main_menu(self, query, context):
+        """Возвращает к главному меню"""
+        # Очищаем состояние ожидания
+        context.user_data.pop('waiting_for_channel_info', None)
+        context.user_data.pop('action', None)
+        
+        # Получаем статистику для главного меню
+        try:
+            summary_stats = self.youtube_stats.get_summary_stats()
+            today_video_stats = self.youtube_stats.get_today_video_stats()
+            detailed_stats = self.youtube_stats.get_detailed_channel_stats()
+            
+            # Формируем сообщение со сводной статистикой
+            message = "📊 **Статистика по отслеживаемым каналам:**\n\n"
+            now_utc = datetime.now(timezone.utc)
+            today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+            yesterday_date = (today_start - timedelta(days=1)).date()
+            
+            # Неделя с понедельника по воскресенье
+            current_weekday = now_utc.weekday()  # 0=понедельник, 6=воскресенье
+            week_start_date = (today_start - timedelta(days=current_weekday)).date()
+            week_end_date = week_start_date + timedelta(days=6)
+            message += (
+                f"За сегодня: {summary_stats['today']['views']:,}👁️ | "
+                f"{summary_stats['today']['likes']:,}👍 | {summary_stats['today']['comments']:,}💬 | "
+                f"+{summary_stats['today'].get('subs_gain', 0):,}👤 | {summary_stats['today'].get('video_count', 0):,}🎬\n"
+            )
+            
+            # Добавляем пояснение о логике подсчета
+            if summary_stats['today']['views'] == 0:
+                message += "ℹ️ *Показаны видео, опубликованные сегодня*\n"
+            
+            # Добавляем детальную статистику по каналам за сегодня
+            for channel_data in detailed_stats['today']:
+                message += (
+                    f"• {channel_data['channel_name']}: {channel_data['views']:,}👁️ | "
+                    f"{channel_data['likes']:,}👍 | {channel_data['comments']:,}💬\n"
+                )
+            
+            # Проверяем наличие данных за вчера
+            if 'yesterday' in summary_stats and summary_stats['yesterday']:
+                message += (
+                    f"\nЗа вчера (UTC {yesterday_date}): {summary_stats['yesterday']['views']:,}👁️ | "
+                    f"{summary_stats['yesterday']['likes']:,}👍 | {summary_stats['yesterday']['comments']:,}💬 | "
+                    f"+{summary_stats['yesterday'].get('subs_gain', 0):,}👤 | {summary_stats['yesterday'].get('video_count', 0):,}🎬\n"
+                )
+                
+                # Добавляем детальную статистику по каналам за вчера
+                if 'yesterday' in detailed_stats and detailed_stats['yesterday']:
+                    for channel_data in detailed_stats['yesterday']:
+                        message += (
+                            f"• {channel_data['channel_name']}: {channel_data['views']:,}👁️ | "
+                            f"{channel_data['likes']:,}👍 | {channel_data['comments']:,}💬\n"
+                        )
+            else:
+                message += f"\nЗа вчера: Данные временно недоступны\n"
+            
+            message += (
+                f"\nЗа неделю (UTC {week_start_date} — {week_end_date}): {summary_stats['week']['views']:,}👁️ | "
+                f"{summary_stats['week']['likes']:,}👍 | {summary_stats['week']['comments']:,}💬 | "
+                f"+{summary_stats['week'].get('subs_gain', 0):,}👤 | {summary_stats['week'].get('video_count', 0):,}🎬\n"
+            )
+            message += (
+                f"За все время: {summary_stats['all_time']['views']:,}👁️ | "
+                f"{summary_stats['all_time']['likes']:,}👍 | {summary_stats['all_time']['comments']:,}💬 | "
+                f"{summary_stats['all_time'].get('subscribers', 0):,}👤 | {summary_stats['all_time'].get('videos', 0):,}🎬\n\n"
+            )
+            channels = channel_manager.get_channels()
+            message += f"Каналов отслеживается: {len(channels)}\n\n"
+            
+            # Добавляем список каналов с гиперссылками
+            channel_links = []
+            for channel in channels:
+                channel_name = channel['name']
+                channel_link = build_channel_link(channel)
+                if channel_link:
+                    channel_links.append(f"[{channel_name}]({channel_link})")
+                else:
+                    channel_links.append(channel_name)
+            
+            message += f"({', '.join(channel_links)})"
+            
+            # Создаем кнопки управления каналами
+            keyboard = [
+                [
+                    InlineKeyboardButton("➕ Добавить канал", callback_data="add_channel"),
+                    InlineKeyboardButton("➖ Удалить канал", callback_data="remove_channel")
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown', disable_web_page_preview=True)
+            
+        except Exception as e:
+            logger.error(f"Ошибка при возврате к главному меню: {e}")
+            await query.edit_message_text("❌ Ошибка при загрузке статистики.")
 
 def main():
     """Запуск бота"""
@@ -349,6 +651,13 @@ def main():
         application.add_handler(CommandHandler("stats", bot.stats))
         application.add_handler(CommandHandler("test_channels", bot.test_channels_command))
         application.add_handler(CommandHandler("help", bot.help_command))
+        
+        # Добавляем обработчик callback запросов
+        application.add_handler(CallbackQueryHandler(bot.handle_callback_query))
+        
+        # Добавляем обработчик текстовых сообщений
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_text_message))
+        
         logger.info("All handlers added successfully")
         
         # Запускаем бота
