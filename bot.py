@@ -122,13 +122,11 @@ class YouTubeStatsBot:
             # Проверяем кэш
             cached_data = self._get_cached_main_menu()
             if cached_data:
-                # Используем кэшированные данные
+                # Используем кэшированные данные - НЕ записываем запрос в трекер
                 message = cached_data['message']
                 reply_markup = cached_data['reply_markup']
                 
-                # Записываем запрос
-                self.request_tracker.record_request(user_id, "start")
-                
+                logger.info(f"Используем кэшированные данные для пользователя {user_id}")
                 await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown', disable_web_page_preview=True)
                 return
             
@@ -367,6 +365,7 @@ class YouTubeStatsBot:
 /start - Главное меню со статистикой
 /stats - Детальная статистика за сегодня
 /test_channels - Тестирование поиска каналов (админ)
+/refresh - Принудительное обновление данных (админ)
 /help - Показать это сообщение
 
 **Статистика включает:**
@@ -377,16 +376,31 @@ class YouTubeStatsBot:
 **Важно:**
 • "За сегодня/вчера" = видео, опубликованные в этот день
 • Время рассчитывается по UTC
-• Данные кэшируются 30 минут
+• Данные кэшируются 1 час
 
 **Лимиты:**
 • 15 запросов в день на пользователя
 • 2 минуты между запросами
-• Кэширование данных 30 минут
+• Кэширование данных 1 час
 
 🚀 **Развернуто на Railway**
         """
         await update.message.reply_text(help_text, parse_mode='Markdown')
+    
+    async def refresh_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /refresh - принудительное обновление данных"""
+        user_id = update.effective_user.id
+        
+        # Только для админа
+        if user_id != config.ADMIN_ID:
+            await update.message.reply_text("❌ Эта команда доступна только администратору.")
+            return
+        
+        # Очищаем кэш
+        self._clear_main_menu_cache()
+        logger.info(f"Кэш очищен администратором {user_id}")
+        
+        await update.message.reply_text("✅ Кэш очищен! Данные будут обновлены при следующем запросе.")
     
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик callback запросов от inline кнопок"""
@@ -652,9 +666,10 @@ Username: @test_channel
             # Проверяем кэш
             cached_data = self._get_cached_main_menu()
             if cached_data:
-                # Используем кэшированные данные
+                # Используем кэшированные данные - НЕ записываем запрос в трекер
                 message = cached_data['message']
                 reply_markup = cached_data['reply_markup']
+                logger.info(f"Используем кэшированные данные для возврата к главному меню")
                 await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown', disable_web_page_preview=True)
                 return
             
@@ -770,6 +785,7 @@ def main():
         application.add_handler(CommandHandler("start", bot.start))
         application.add_handler(CommandHandler("stats", bot.stats))
         application.add_handler(CommandHandler("test_channels", bot.test_channels_command))
+        application.add_handler(CommandHandler("refresh", bot.refresh_command))
         application.add_handler(CommandHandler("help", bot.help_command))
         
         # Добавляем обработчик callback запросов
