@@ -394,22 +394,33 @@ class YouTubeStatsBot:
         await query.answer()
         
         user_id = update.effective_user.id
+        callback_data = query.data
+        
+        logger.info(f"Получен callback запрос от пользователя {user_id}: {callback_data}")
         
         # Проверяем права доступа (только админ может управлять каналами)
         if user_id != config.ADMIN_ID:
+            logger.info(f"Пользователь {user_id} не является администратором")
             await query.edit_message_text("❌ Управление каналами доступно только администратору.")
             return
         
-        if query.data == "add_channel":
+        if callback_data == "add_channel":
+            logger.info("Обрабатываем добавление канала")
             await self.show_add_channel_menu(query, context)
-        elif query.data == "remove_channel":
+        elif callback_data == "remove_channel":
+            logger.info("Обрабатываем удаление канала")
             await self.show_remove_channel_menu(query, context)
-        elif query.data.startswith("confirm_add_"):
+        elif callback_data.startswith("confirm_add_"):
+            logger.info("Подтверждаем добавление канала")
             await self.confirm_add_channel(query, context)
-        elif query.data.startswith("confirm_remove_"):
+        elif callback_data.startswith("confirm_remove_"):
+            logger.info("Подтверждаем удаление канала")
             await self.confirm_remove_channel(query, context)
-        elif query.data == "back_to_main":
+        elif callback_data == "back_to_main":
+            logger.info("Возвращаемся к главному меню")
             await self.back_to_main_menu(query, context)
+        else:
+            logger.warning(f"Неизвестный callback_data: {callback_data}")
     
     async def show_add_channel_menu(self, query, context):
         """Показывает меню добавления канала"""
@@ -440,6 +451,7 @@ Username: @test_channel
         # Устанавливаем состояние ожидания ввода
         context.user_data['waiting_for_channel_info'] = True
         context.user_data['action'] = 'add_channel'
+        logger.info(f"Установлено состояние ожидания ввода для пользователя {query.from_user.id}")
     
     async def show_remove_channel_menu(self, query, context):
         """Показывает меню удаления канала"""
@@ -491,18 +503,28 @@ Username: @test_channel
     async def handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик текстовых сообщений для добавления каналов"""
         user_id = update.effective_user.id
+        text = update.message.text
+        
+        logger.info(f"Получено текстовое сообщение от пользователя {user_id}: {text}")
         
         # Проверяем права доступа
         if user_id != config.ADMIN_ID:
+            logger.info(f"Пользователь {user_id} не является администратором")
             return
         
         # Проверяем, ожидаем ли мы информацию о канале
         if not context.user_data.get('waiting_for_channel_info', False):
+            logger.info(f"Не ожидаем информацию о канале от пользователя {user_id}")
             return
         
         action = context.user_data.get('action')
+        logger.info(f"Действие: {action}")
+        
         if action == 'add_channel':
+            logger.info(f"Обрабатываем информацию о канале: {text}")
             await self.process_channel_info(update, context)
+        else:
+            logger.info(f"Неизвестное действие: {action}")
     
     async def process_channel_info(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает информацию о канале для добавления"""
