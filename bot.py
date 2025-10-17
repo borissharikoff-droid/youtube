@@ -205,11 +205,13 @@ class YouTubeStatsBot:
             channel_links = []
             for channel in channels:
                 channel_name = channel['name']
+                # Экранируем специальные символы Markdown
+                safe_name = channel_name.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)')
                 channel_link = build_channel_link(channel)
                 if channel_link:
-                    channel_links.append(f"[{channel_name}]({channel_link})")
+                    channel_links.append(f"[{safe_name}]({channel_link})")
                 else:
-                    channel_links.append(channel_name)
+                    channel_links.append(safe_name)
             
             message += f"({', '.join(channel_links)})"
             
@@ -638,6 +640,19 @@ Username: @test_channel
                     # Это может быть channel ID
                     channel_info['channel_id'] = text.split('/')[-1]
                     channel_info['name'] = "Канал"
+            # Проверяем, содержит ли текст @username
+            elif '@' in text:
+                # Ищем @username в тексте
+                username_match = re.search(r'@([a-zA-Z0-9_-]+)', text)
+                if username_match:
+                    username = username_match.group(1)
+                    channel_info['username'] = f"@{username}"
+                    # Убираем @username из текста для названия
+                    name_part = re.sub(r'@[a-zA-Z0-9_-]+', '', text).strip()
+                    if name_part:
+                        channel_info['name'] = name_part
+                    else:
+                        channel_info['name'] = username.replace('_', ' ').replace('-', ' ').title()
             # Проверяем, является ли текст username (начинается с @ или содержит только буквы/цифры/подчеркивания)
             elif re.match(r'^@?[a-zA-Z0-9_-]+$', text):
                 channel_info['username'] = text
@@ -739,11 +754,13 @@ Username: @test_channel
             channel_links = []
             for channel in channels:
                 channel_name = channel['name']
+                # Экранируем специальные символы Markdown
+                safe_name = channel_name.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)')
                 channel_link = build_channel_link(channel)
                 if channel_link:
-                    channel_links.append(f"[{channel_name}]({channel_link})")
+                    channel_links.append(f"[{safe_name}]({channel_link})")
                 else:
-                    channel_links.append(channel_name)
+                    channel_links.append(safe_name)
             
             message += f"({', '.join(channel_links)})"
             
