@@ -20,11 +20,26 @@ logger = logging.getLogger(__name__)
 def build_channel_link(channel: dict) -> str:
     channel_username = channel.get('username', '') or ''
     channel_id = channel.get('channel_id', '') or ''
+    
     if channel_username:
-        # Ожидается формат с @, но поддержим и без него
-        return f"https://www.youtube.com/{channel_username}"
+        # Очищаем username от лишних символов и URL
+        clean_username = channel_username.strip()
+        
+        # Если это уже полная ссылка, возвращаем как есть
+        if clean_username.startswith('https://www.youtube.com/'):
+            return clean_username
+        
+        # Убираем @ если есть
+        if clean_username.startswith('@'):
+            clean_username = clean_username[1:]
+        
+        # Проверяем, что username не содержит недопустимых символов
+        if clean_username and not clean_username.startswith('http'):
+            return f"https://www.youtube.com/@{clean_username}"
+    
     if channel_id:
         return f"https://www.youtube.com/channel/{channel_id}"
+    
     return ""
 
 # Проверяем конфигурацию при запуске
@@ -66,7 +81,31 @@ class YouTubeStatsBot:
     def __init__(self):
         self.youtube_stats = YouTubeStats()
         self.request_tracker = RequestTracker()
+        # Кэш для главного меню
+        self._main_menu_cache = {}
+        self._cache_timeout = 3600  # 1 час
         logger.info("YouTubeStatsBot initialized for Railway")
+    
+    def _get_cached_main_menu(self):
+        """Получает кэшированные данные главного меню"""
+        import time
+        if 'data' in self._main_menu_cache:
+            timestamp, data = self._main_menu_cache['data']
+            if time.time() - timestamp < self._cache_timeout:
+                logger.info("Используем кэшированные данные главного меню")
+                return data
+        return None
+    
+    def _set_cached_main_menu(self, data):
+        """Сохраняет данные главного меню в кэш"""
+        import time
+        self._main_menu_cache['data'] = (time.time(), data)
+        logger.info("Данные главного меню сохранены в кэш")
+    
+    def _clear_main_menu_cache(self):
+        """Очищает кэш главного меню"""
+        self._main_menu_cache.clear()
+        logger.info("Кэш главного меню очищен")
     
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /start"""
@@ -80,6 +119,19 @@ class YouTubeStatsBot:
             return
         
         try:
+            # Проверяем кэш
+            cached_data = self._get_cached_main_menu()
+            if cached_data:
+                # Используем кэшированные данные
+                message = cached_data['message']
+                reply_markup = cached_data['reply_markup']
+                
+                # Записываем запрос
+                self.request_tracker.record_request(user_id, "start")
+                
+                await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown', disable_web_page_preview=True)
+                return
+            
             # Показываем сообщение о загрузке
             loading_message = await update.message.reply_text("📊 Загружаю статистику...")
             
@@ -174,6 +226,12 @@ class YouTubeStatsBot:
             
             # Записываем запрос
             self.request_tracker.record_request(user_id, "start")
+            
+            # Сохраняем в кэш
+            self._set_cached_main_menu({
+                'message': message,
+                'reply_markup': reply_markup
+            })
             
             # Удаляем сообщение о загрузке и отправляем результат
             await loading_message.delete()
@@ -417,9 +475,18 @@ Username: @test_channel
         result = channel_manager.remove_channel(channel_index)
         
         if result['success']:
-            await query.edit_message_text(f"✅ {result['message']}")
+            # Очищаем кэш главного меню, так как список каналов изменился
+            self._clear_main_menu_cache()
+            
+            # Добавляем кнопку "Назад" после успешного удаления
+            keyboard = [[InlineKeyboardButton("🔙 Назад к меню", callback_data="back_to_main")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(f"✅ {result['message']}", reply_markup=reply_markup)
         else:
-            await query.edit_message_text(f"❌ {result['message']}")
+            # Добавляем кнопку "Назад" даже при ошибке
+            keyboard = [[InlineKeyboardButton("🔙 Назад к меню", callback_data="back_to_main")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(f"❌ {result['message']}", reply_markup=reply_markup)
     
     async def handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик текстовых сообщений для добавления каналов"""
@@ -469,6 +536,9 @@ Username: @test_channel
             )
             
             if result['success']:
+                # Очищаем кэш главного меню, так как список каналов изменился
+                self._clear_main_menu_cache()
+                
                 # Очищаем состояние ожидания
                 context.user_data.pop('waiting_for_channel_info', None)
                 context.user_data.pop('action', None)
@@ -519,8 +589,21 @@ Username: @test_channel
         
         # Если структурированной информации нет, пытаемся извлечь из простого текста
         if not channel_info['name'] and not channel_info['username']:
+            # Проверяем, является ли текст URL
+            if text.startswith('https://www.youtube.com/'):
+                # Извлекаем username из URL
+                if '/@' in text:
+                    username_part = text.split('/@')[1]
+                    if '/' in username_part:
+                        username_part = username_part.split('/')[0]
+                    channel_info['username'] = f"@{username_part}"
+                    channel_info['name'] = username_part.replace('_', ' ').replace('-', ' ').title()
+                else:
+                    # Это может быть channel ID
+                    channel_info['channel_id'] = text.split('/')[-1]
+                    channel_info['name'] = "Канал"
             # Проверяем, является ли текст username (начинается с @ или содержит только буквы/цифры/подчеркивания)
-            if re.match(r'^@?[a-zA-Z0-9_-]+$', text):
+            elif re.match(r'^@?[a-zA-Z0-9_-]+$', text):
                 channel_info['username'] = text
                 # Пытаемся извлечь название из username
                 clean_username = text.lstrip('@')
@@ -544,6 +627,15 @@ Username: @test_channel
         
         # Получаем статистику для главного меню
         try:
+            # Проверяем кэш
+            cached_data = self._get_cached_main_menu()
+            if cached_data:
+                # Используем кэшированные данные
+                message = cached_data['message']
+                reply_markup = cached_data['reply_markup']
+                await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown', disable_web_page_preview=True)
+                return
+            
             summary_stats = self.youtube_stats.get_summary_stats()
             today_video_stats = self.youtube_stats.get_today_video_stats()
             detailed_stats = self.youtube_stats.get_detailed_channel_stats()
@@ -626,6 +718,12 @@ Username: @test_channel
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Сохраняем в кэш
+            self._set_cached_main_menu({
+                'message': message,
+                'reply_markup': reply_markup
+            })
             
             await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown', disable_web_page_preview=True)
             

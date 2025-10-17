@@ -22,7 +22,7 @@ class YouTubeStats:
             logger.error(f"Failed to initialize YouTube API client: {e}")
             raise
         self._cache = {}
-        self._cache_timeout = 1800  # 30 минут кэш для оптимизации
+        self._cache_timeout = 3600  # 1 час кэш для оптимизации
         # Файл для хранения базовых значений подписчиков по периодам
         self._subs_store_file = "subs_history.json"
         self._load_subs_store()
@@ -469,12 +469,22 @@ class YouTubeStats:
         
         for channel in channel_manager.get_channels():
             try:
-                channel_stats = self.get_channel_stats(channel['channel_id'], channel.get('username'))
+                channel_id = channel.get('channel_id', '')
+                username = channel.get('username', '')
+                
+                # Если нет channel_id, пытаемся получить его по username
+                if not channel_id and username:
+                    channel_id = self._resolve_channel_id_by_username(username)
+                
+                if not channel_id:
+                    continue
+                
+                channel_stats = self.get_channel_stats(channel_id, username)
                 if not channel_stats:
                     continue
 
                 today_end = today_start + timedelta(days=1)
-                today_videos = self.get_videos_for_period(channel['channel_id'], today_start, today_end, channel.get('username'))
+                today_videos = self.get_videos_for_period(channel_id, today_start, today_end, username)
 
                 total_views = sum(v['views'] for v in today_videos)
                 total_likes = sum(v['likes'] for v in today_videos)
@@ -501,11 +511,21 @@ class YouTubeStats:
         period_stats = []
         
         for channel in channel_manager.get_channels():
-            channel_stats = self.get_channel_stats(channel['channel_id'], channel.get('username'))
+            channel_id = channel.get('channel_id', '')
+            username = channel.get('username', '')
+            
+            # Если нет channel_id, пытаемся получить его по username
+            if not channel_id and username:
+                channel_id = self._resolve_channel_id_by_username(username)
+            
+            if not channel_id:
+                continue
+            
+            channel_stats = self.get_channel_stats(channel_id, username)
             if not channel_stats:
                 continue
             
-            videos = self.get_recent_videos(channel['channel_id'], days=days, username=channel.get('username'))
+            videos = self.get_recent_videos(channel_id, days=days, username=username)
             
             # Считаем общую статистику за период
             total_views = sum(video['views'] for video in videos)
@@ -617,12 +637,31 @@ class YouTubeStats:
             week_start = today_start - timedelta(days=current_weekday)
             
             for channel in channel_manager.get_channels():
-                channel_id = channel['channel_id']
+                channel_id = channel.get('channel_id', '')
                 channel_name = channel['name']
+                username = channel.get('username', '')
                 
-                logger.info(f"Processing channel: {channel_name} ({channel_id})")
+                logger.info(f"Processing channel: {channel_name} (ID: {channel_id}, Username: {username})")
                 
-                channel_stats = self.get_channel_stats(channel_id, channel.get('username'))
+                # Если нет channel_id, пытаемся получить его по username
+                if not channel_id and username:
+                    try:
+                        resolved_id = self._resolve_channel_id_by_username(username)
+                        if resolved_id:
+                            channel_id = resolved_id
+                            logger.info(f"Resolved channel_id for {channel_name}: {channel_id}")
+                        else:
+                            logger.warning(f"Could not resolve channel_id for {channel_name} with username {username}")
+                            continue
+                    except Exception as e:
+                        logger.error(f"Error resolving channel_id for {channel_name}: {e}")
+                        continue
+                
+                if not channel_id:
+                    logger.warning(f"No channel_id available for channel: {channel_name}")
+                    continue
+                
+                channel_stats = self.get_channel_stats(channel_id, username)
                 if not channel_stats:
                     logger.warning(f"Failed to get stats for channel: {channel_name}")
                     continue
@@ -742,10 +781,18 @@ class YouTubeStats:
             today_start = current_utc.replace(hour=0, minute=0, second=0, microsecond=0)
             
             for channel in channel_manager.get_channels():
-                channel_id = channel['channel_id']
+                channel_id = channel.get('channel_id', '')
+                username = channel.get('username', '')
+                
+                # Если нет channel_id, пытаемся получить его по username
+                if not channel_id and username:
+                    channel_id = self._resolve_channel_id_by_username(username)
+                
+                if not channel_id:
+                    continue
                 
                 # Получаем последние видео канала
-                recent_videos = self.get_recent_channel_videos(channel_id, 50, channel.get('username'))
+                recent_videos = self.get_recent_channel_videos(channel_id, 50, username)
                 
                 for video in recent_videos:
                     pub_date = video['published_datetime'].replace(tzinfo=None)
@@ -782,13 +829,35 @@ class YouTubeStats:
             yesterday_start = today_start - timedelta(days=1)
             
             for channel in channel_manager.get_channels():
-                channel_id = channel['channel_id']
+                channel_id = channel.get('channel_id', '')
                 channel_name = channel['name']
                 channel_username = channel.get('username', '')
                 
+                # Если нет channel_id, пытаемся получить его по username
+                if not channel_id and channel_username:
+                    channel_id = self._resolve_channel_id_by_username(channel_username)
+                
+                if not channel_id:
+                    # Добавляем канал с нулевой статистикой
+                    detailed_stats['today'].append({
+                        'channel_name': channel_name,
+                        'channel_display': channel_name,
+                        'views': 0,
+                        'likes': 0,
+                        'comments': 0
+                    })
+                    detailed_stats['yesterday'].append({
+                        'channel_name': channel_name,
+                        'channel_display': channel_name,
+                        'views': 0,
+                        'likes': 0,
+                        'comments': 0
+                    })
+                    continue
+                
                 try:
                     # Получаем последние видео канала
-                    recent_videos = self.get_recent_channel_videos(channel_id, 50, channel.get('username'))
+                    recent_videos = self.get_recent_channel_videos(channel_id, 50, channel_username)
                     
                     # Фильтруем и считаем статистику по периодам
                     today_views = today_likes = today_comments = 0
@@ -904,8 +973,17 @@ class YouTubeStats:
         
         # Тестируем доступ к каждому каналу
         for channel in channel_manager.get_channels():
-            channel_id = channel['channel_id']
+            channel_id = channel.get('channel_id', '')
             channel_name = channel['name']
+            username = channel.get('username', '')
+            
+            # Если нет channel_id, пытаемся получить его по username
+            if not channel_id and username:
+                channel_id = self._resolve_channel_id_by_username(username)
+            
+            if not channel_id:
+                issues.append(f"Канал {channel_name}: Нет channel_id и не удалось получить по username {username}")
+                continue
             
             channel_ok, channel_message = self.test_channel_access(channel_id)
             if not channel_ok:
