@@ -39,29 +39,23 @@ DATABASE_PATH = os.getenv("DATABASE_PATH", "youtube_tracker.db")
 # Список каналов для мониторинга
 CHANNELS = [
     {
-        "name": "TrueBeasts Journal (lumari)",
-        "channel_id": "UChxGGarAwE9lWlnoNKnmoUw",
-        "username": "@LongQuachThuy-b9l8b"
+        "name": "Говорилки софтом",
+        "channel_id": "UCAwrVTXIRxk8FDpyr6T_j7A",
+        "username": ""
     },
     {
-        "name": "Human Thread Story (cutli)",
-        "channel_id": "UCwSQVMelX48iJmYsUwXSEpg",
-        "username": "@HaDangMinh-t7j9g"
+        "name": "Премия дарвина",
+        "channel_id": "UCru-f82fjfVHWi2COAUR8eQ",
+        "username": ""
     },
     {
-        "name": "Фильмы (MININ)",
-        "channel_id": "",
-        "username": "@MININ-q1t"
-    },
-    {
-        "name": "Бизнес.подкасты (VTOROJJJ)",
-        "channel_id": "",
-        "username": "@VTOROJJJ"
+        "name": "Милитари",
+        "channel_id": "UC2q4rIDzF9F_oCQkhG2tizw",
+        "username": ""
     }
 ]
 
-# Обновлено: 2025-01-27 - переименованы каналы и удалены Prime Fuel Nutrition и vanessalibran
-# Обновлено: 2025-01-27 - добавлены каналы "Фильмы (MININ)" и "Бизнес.подкасты (VTOROJJJ)"
+# Обновлено: 2025-01-27 - оставлены только три канала: "Говорилки софтом", "Премия дарвина", "Милитари"
 
 # ИСКЛЮЧЕННЫЕ КАНАЛЫ (пример формата):
 # CHANNELS = [
