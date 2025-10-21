@@ -8,6 +8,7 @@ import config
 from youtube_stats import YouTubeStats
 from request_tracker import RequestTracker
 from channel_manager import channel_manager
+from chart_generator import YouTubeChartGenerator
 
 # Настройка логирования
 logging.basicConfig(
@@ -81,6 +82,7 @@ class YouTubeStatsBot:
     def __init__(self):
         self.youtube_stats = YouTubeStats()
         self.request_tracker = RequestTracker()
+        self.chart_generator = YouTubeChartGenerator()
         # Кэш для главного меню
         self._main_menu_cache = {}
         self._cache_timeout = 3600  # 1 час
@@ -357,6 +359,56 @@ class YouTubeStatsBot:
             logger.error(f"Ошибка при тестировании каналов: {e}")
             await update.message.reply_text(f"❌ Ошибка: {str(e)}")
     
+    async def chart_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /chart - генерация графиков"""
+        
+        user_id = update.effective_user.id
+        
+        # Проверяем лимиты запросов
+        can_request, message_text = self.request_tracker.can_make_request(user_id)
+        if not can_request:
+            await update.message.reply_text(f"⚠️ {message_text}")
+            return
+        
+        try:
+            # Показываем сообщение о генерации
+            loading_message = await update.message.reply_text("📊 Генерирую красивый график...")
+            
+            # Получаем данные
+            summary_stats = self.youtube_stats.get_summary_stats()
+            detailed_stats = self.youtube_stats.get_detailed_channel_stats()
+            channels_info = channel_manager.get_channels()
+            
+            # Создаем график
+            chart_fig = self.chart_generator.create_infographic(summary_stats, detailed_stats, channels_info)
+            
+            # Конвертируем в байты
+            chart_bytes = self.chart_generator.get_chart_bytes(chart_fig)
+            
+            if chart_bytes:
+                # Отправляем изображение
+                await loading_message.delete()
+                await update.message.reply_photo(
+                    photo=chart_bytes,
+                    caption="📊 **Красивая статистика ваших каналов!**\n\n"
+                           "График показывает актуальные данные по всем отслеживаемым каналам.",
+                    parse_mode='Markdown'
+                )
+                
+                # Записываем запрос
+                self.request_tracker.record_request(user_id, "chart")
+                
+                logger.info(f"График успешно отправлен пользователю {user_id}")
+            else:
+                await loading_message.edit_text("❌ Ошибка при генерации графика. Попробуйте позже.")
+                
+        except Exception as e:
+            logger.error(f"Ошибка при генерации графика: {e}")
+            try:
+                await loading_message.edit_text("❌ Ошибка при генерации графика. Попробуйте позже.")
+            except:
+                await update.message.reply_text("❌ Ошибка при генерации графика. Попробуйте позже.")
+    
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /help"""
         
@@ -366,6 +418,7 @@ class YouTubeStatsBot:
 **Команды:**
 /start - Главное меню со статистикой
 /stats - Детальная статистика за сегодня
+/chart - Красивые графики и диаграммы 📊
 /test_channels - Тестирование поиска каналов (админ)
 /refresh - Принудительное обновление данных (админ)
 /help - Показать это сообщение
@@ -374,6 +427,7 @@ class YouTubeStatsBot:
 • Просмотры, лайки, комментарии
 • Количество видео за период
 • Отслеживание по каналам
+• Красивые визуализации данных
 
 **Важно:**
 • "За сегодня/вчера" = видео, опубликованные в этот день
@@ -801,6 +855,7 @@ def main():
         logger.info("Adding command handlers...")
         application.add_handler(CommandHandler("start", bot.start))
         application.add_handler(CommandHandler("stats", bot.stats))
+        application.add_handler(CommandHandler("chart", bot.chart_command))
         application.add_handler(CommandHandler("test_channels", bot.test_channels_command))
         application.add_handler(CommandHandler("refresh", bot.refresh_command))
         application.add_handler(CommandHandler("help", bot.help_command))
