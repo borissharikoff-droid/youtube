@@ -36,11 +36,7 @@ REQUEST_COOLDOWN = 120  # 2 минуты между запросами
 # Путь к базе данных
 DATABASE_PATH = os.getenv("DATABASE_PATH", "youtube_tracker.db")
 
-<<<<<<< Current (Your changes)
-# Список каналов для мониторинга (используется как fallback, основные каналы в channels_config.json)
-=======
 # Список каналов для мониторинга
 # ВАЖНО: Каналы теперь управляются через channels_config.json
 # Этот список используется только как fallback, если channels_config.json не существует
->>>>>>> Incoming (Background Agent changes)
 CHANNELS = []
