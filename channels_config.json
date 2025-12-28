@@ -1,19 +1,99 @@
 {
   "channels": [
     {
-      "name": "Говорилки софтом",
-      "channel_id": "UCAwrVTXIRxk8FDpyr6T_j7A",
+      "name": "Darwin Files",
+      "channel_id": "",
+      "username": "@Darwin_Files"
+    },
+    {
+      "name": "MTJDZWQ",
+      "channel_id": "",
+      "username": "@MTJDZWQ"
+    },
+    {
+      "name": "joeca1i",
+      "channel_id": "",
+      "username": "@joeca1i"
+    },
+    {
+      "name": "DiegoAbelDelgado",
+      "channel_id": "",
+      "username": "@DiegoAbelDelgado"
+    },
+    {
+      "name": "clubjuliochaidez",
+      "channel_id": "",
+      "username": "@clubjuliochaidez"
+    },
+    {
+      "name": "EwolfAMV",
+      "channel_id": "",
+      "username": "@EwolfAMV"
+    },
+    {
+      "name": "FAHEYHD",
+      "channel_id": "",
+      "username": "@FAHEYHD"
+    },
+    {
+      "name": "Ghoulghastable",
+      "channel_id": "",
+      "username": "@Ghoulghastable"
+    },
+    {
+      "name": "BestialityKid",
+      "channel_id": "",
+      "username": "@BestialityKid"
+    },
+    {
+      "name": "Channel UC5F",
+      "channel_id": "UC5F-wr0xEW3gQ32NJc_8nDg",
       "username": ""
     },
     {
-      "name": "Премия дарвина",
-      "channel_id": "UCru-f82fjfVHWi2COAUR8eQ",
+      "name": "Channel UCd4",
+      "channel_id": "UCd4DcpEBjA1ECjR-UWNLAoA",
       "username": ""
     },
     {
-      "name": "Милитари",
-      "channel_id": "UC2q4rIDzF9F_oCQkhG2tizw",
+      "name": "Channel UCnzx",
+      "channel_id": "UCnzx-Qm5oYhbfdn7NZki4OA",
       "username": ""
+    },
+    {
+      "name": "Channel UC96",
+      "channel_id": "UC96MWg8GrfYDz_uKJTkI0Mw",
+      "username": ""
+    },
+    {
+      "name": "Арсений-ю7с3ю",
+      "channel_id": "",
+      "username": "@Арсений-ю7с3ю"
+    },
+    {
+      "name": "Channel UCVUr",
+      "channel_id": "UCVUrR2o-5xioLFuhKmPKGsg",
+      "username": ""
+    },
+    {
+      "name": "Channel UCNAz",
+      "channel_id": "UCNAz1IcyNkSFphLR1VgppPg",
+      "username": ""
+    },
+    {
+      "name": "Channel UCitv",
+      "channel_id": "UCitvQfloidouKxBpfTjBrMg",
+      "username": ""
+    },
+    {
+      "name": "Meanwhile_on_Earth_1",
+      "channel_id": "",
+      "username": "@Meanwhile_on_Earth_1"
+    },
+    {
+      "name": "Oops_Commander",
+      "channel_id": "",
+      "username": "@Oops_Commander"
     }
   ],
   "last_updated": "2025-01-27 12:00:00"

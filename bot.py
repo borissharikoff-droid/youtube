@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time as dt_time
 import sys
 import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -48,8 +48,9 @@ try:
     logger.info("Starting YouTube Stats Bot for Railway...")
     logger.info(f"Telegram Token: {'Set' if config.TELEGRAM_TOKEN else 'Not set'}")
     logger.info(f"YouTube API Key: {'Set' if config.YOUTUBE_API_KEY else 'Not set'}")
-    logger.info(f"Admin ID: {config.ADMIN_ID}")
-    logger.info(f"Channels to monitor: {len(config.CHANNELS)}")
+    logger.info(f"YouTube API Key 2: {'Set' if getattr(config, 'YOUTUBE_API_KEY_2', None) else 'Not set'}")
+    logger.info(f"Admin ID: {'Set' if config.ADMIN_ID else 'Not set'}")
+    logger.info(f"Channels to monitor: {len(channel_manager.get_channels())}")
 except Exception as e:
     logger.error(f"Configuration error: {e}")
     sys.exit(1)
@@ -838,6 +839,103 @@ Username: @test_channel
         except Exception as e:
             logger.error(f"Ошибка при возврате к главному меню: {e}")
             await query.edit_message_text("❌ Ошибка при загрузке статистики.")
+    
+    async def send_daily_report(self, context: ContextTypes.DEFAULT_TYPE):
+        """Отправляет ежедневный отчет о статистике каналов"""
+        try:
+            logger.info("Начинаю отправку ежедневного отчета...")
+            
+            # Получаем сводную статистику и детальную статистику по каналам
+            summary_stats = self.youtube_stats.get_summary_stats()
+            today_video_stats = self.youtube_stats.get_today_video_stats()
+            detailed_stats = self.youtube_stats.get_detailed_channel_stats()
+            
+            # Формируем сообщение со сводной статистикой
+            message = "📊 **Ежедневный отчет по отслеживаемым каналам:**\n\n"
+            now_utc = datetime.now(timezone.utc)
+            today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+            yesterday_date = (today_start - timedelta(days=1)).date()
+            
+            # Неделя с понедельника по воскресенье
+            current_weekday = now_utc.weekday()  # 0=понедельник, 6=воскресенье
+            week_start_date = (today_start - timedelta(days=current_weekday)).date()
+            week_end_date = week_start_date + timedelta(days=6)
+            message += (
+                f"За сегодня: {summary_stats['today']['views']:,}👁️ | "
+                f"{summary_stats['today']['likes']:,}👍 | {summary_stats['today']['comments']:,}💬 | "
+                f"+{summary_stats['today'].get('subs_gain', 0):,}👤 | {summary_stats['today'].get('video_count', 0):,}🎬\n"
+            )
+            
+            # Добавляем пояснение о логике подсчета
+            if summary_stats['today']['views'] == 0:
+                message += "ℹ️ *Показаны видео, опубликованные сегодня*\n"
+            
+            # Добавляем детальную статистику по каналам за сегодня
+            for channel_data in detailed_stats['today']:
+                message += (
+                    f"• {channel_data['channel_name']}: {channel_data['views']:,}👁️ | "
+                    f"{channel_data['likes']:,}👍 | {channel_data['comments']:,}💬\n"
+                )
+            
+            # Проверяем наличие данных за вчера
+            if 'yesterday' in summary_stats and summary_stats['yesterday']:
+                message += (
+                    f"\nЗа вчера (UTC {yesterday_date}): {summary_stats['yesterday']['views']:,}👁️ | "
+                    f"{summary_stats['yesterday']['likes']:,}👍 | {summary_stats['yesterday']['comments']:,}💬 | "
+                    f"+{summary_stats['yesterday'].get('subs_gain', 0):,}👤 | {summary_stats['yesterday'].get('video_count', 0):,}🎬\n"
+                )
+                
+                # Добавляем детальную статистику по каналам за вчера
+                if 'yesterday' in detailed_stats and detailed_stats['yesterday']:
+                    for channel_data in detailed_stats['yesterday']:
+                        message += (
+                            f"• {channel_data['channel_name']}: {channel_data['views']:,}👁️ | "
+                            f"{channel_data['likes']:,}👍 | {channel_data['comments']:,}💬\n"
+                        )
+            else:
+                message += f"\nЗа вчера: Данные временно недоступны\n"
+            
+            message += (
+                f"\nЗа неделю (UTC {week_start_date} — {week_end_date}): {summary_stats['week']['views']:,}👁️ | "
+                f"{summary_stats['week']['likes']:,}👍 | {summary_stats['week']['comments']:,}💬 | "
+                f"+{summary_stats['week'].get('subs_gain', 0):,}👤 | {summary_stats['week'].get('video_count', 0):,}🎬\n"
+            )
+            message += (
+                f"За все время: {summary_stats['all_time']['views']:,}👁️ | "
+                f"{summary_stats['all_time']['likes']:,}👍 | {summary_stats['all_time']['comments']:,}💬 | "
+                f"{summary_stats['all_time'].get('subscribers', 0):,}👤 | {summary_stats['all_time'].get('videos', 0):,}🎬\n\n"
+            )
+            channels = channel_manager.get_channels()
+            message += f"Каналов отслеживается: {len(channels)}\n\n"
+            
+            # Добавляем список каналов с гиперссылками
+            channel_links = []
+            for channel in channels:
+                channel_name = channel['name']
+                # Экранируем специальные символы Markdown
+                safe_name = channel_name.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)')
+                channel_link = build_channel_link(channel)
+                if channel_link:
+                    channel_links.append(f"[{safe_name}]({channel_link})")
+                else:
+                    channel_links.append(safe_name)
+            
+            message += f"({', '.join(channel_links)})"
+            
+            # Отправляем сообщение администратору
+            try:
+                await context.bot.send_message(
+                    chat_id=config.ADMIN_ID,
+                    text=message,
+                    parse_mode='Markdown',
+                    disable_web_page_preview=True
+                )
+                logger.info(f"Ежедневный отчет успешно отправлен администратору {config.ADMIN_ID}")
+            except Exception as e:
+                logger.error(f"Ошибка при отправке ежедневного отчета: {e}")
+                
+        except Exception as e:
+            logger.error(f"Ошибка при формировании ежедневного отчета: {e}")
 
 def main():
     """Запуск бота"""
@@ -867,6 +965,21 @@ def main():
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_text_message))
         
         logger.info("All handlers added successfully")
+        
+        # Настраиваем ежедневную отправку отчета в 11:00 МСК (08:00 UTC)
+        # МСК = UTC+3, поэтому 11:00 МСК = 08:00 UTC
+        job_queue = application.job_queue
+        if job_queue:
+            # Создаем время для ежедневной отправки: 08:00 UTC (11:00 МСК)
+            daily_time = dt_time(hour=8, minute=0, second=0)
+            job_queue.run_daily(
+                bot.send_daily_report,
+                time=daily_time,
+                name="daily_report"
+            )
+            logger.info("Ежедневная задача настроена: отправка отчета в 11:00 МСК (08:00 UTC)")
+        else:
+            logger.warning("JobQueue недоступен, ежедневная отправка не настроена")
         
         # Запускаем бота
         logger.info("Starting bot polling...")

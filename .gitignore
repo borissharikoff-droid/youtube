@@ -42,6 +42,8 @@ Thumbs.db
 # Bot data
 request_data.json
 *.log
+test_*.db
+subs_history.json
 
 # Railway
 .railway/
