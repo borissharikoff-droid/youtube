@@ -36,28 +36,11 @@ REQUEST_COOLDOWN = 120  # 2 минуты между запросами
 # Путь к базе данных
 DATABASE_PATH = os.getenv("DATABASE_PATH", "youtube_tracker.db")
 
+<<<<<<< Current (Your changes)
+# Список каналов для мониторинга (используется как fallback, основные каналы в channels_config.json)
+=======
 # Список каналов для мониторинга
-CHANNELS = [
-    {
-        "name": "Говорилки софтом",
-        "channel_id": "UCAwrVTXIRxk8FDpyr6T_j7A",
-        "username": ""
-    },
-    {
-        "name": "Премия дарвина",
-        "channel_id": "UCru-f82fjfVHWi2COAUR8eQ",
-        "username": ""
-    },
-    {
-        "name": "Милитари",
-        "channel_id": "UC2q4rIDzF9F_oCQkhG2tizw",
-        "username": ""
-    }
-]
-
-# Обновлено: 2025-01-27 - оставлены только три канала: "Говорилки софтом", "Премия дарвина", "Милитари"
-
-# ИСКЛЮЧЕННЫЕ КАНАЛЫ (пример формата):
-# CHANNELS = [
-#     {"name": "Example", "channel_id": "UCxxxxxxxxxxxxxxxxxx", "username": "@example"}
-# ]
+# ВАЖНО: Каналы теперь управляются через channels_config.json
+# Этот список используется только как fallback, если channels_config.json не существует
+>>>>>>> Incoming (Background Agent changes)
+CHANNELS = []

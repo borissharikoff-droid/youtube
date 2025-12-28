@@ -81,6 +81,10 @@ def get_error_message(e):
 
 class YouTubeStatsBot:
     def __init__(self):
+        # Принудительно перезагружаем каналы из файла при старте
+        channel_manager.reload_channels()
+        logger.info(f"Загружено каналов: {len(channel_manager.get_channels())}")
+        
         self.youtube_stats = YouTubeStats()
         self.request_tracker = RequestTracker()
         self.chart_generator = YouTubeChartGenerator()
