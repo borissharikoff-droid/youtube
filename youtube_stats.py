@@ -222,8 +222,12 @@ class YouTubeStats:
 
         # Инициализация/обновление baseline сегодня
         if ch.get("baseline_today_key") != today_key:
+            # Сохраняем старое значение baseline_today_subs перед обновлением
+            old_baseline_today = ch.get("baseline_today_subs")
+            # Обновляем baseline на начало нового дня
             ch["baseline_today_key"] = today_key
             ch["baseline_today_subs"] = int(current_subs)
+            # Если это первый запуск, baseline уже установлен в current_subs, прирост будет 0
 
         # Инициализация/обновление baseline недели
         if ch.get("baseline_week_key") != week_key:
@@ -676,6 +680,7 @@ class YouTubeStats:
                 week_videos = self.get_videos_for_period(channel_id, week_start, current_utc, channel.get('username'))
                 
                 all_channels_data[channel['name']] = {
+                    'channel_id': channel_id,  # Сохраняем resolved channel_id
                     'channel_stats': channel_stats,
                     'today_videos': today_videos,
                     'yesterday_videos': yesterday_videos,
@@ -721,27 +726,28 @@ class YouTubeStats:
                 summary['week']['comments'] += week_comments_sum
                 summary['week']['video_count'] += len(data['week_videos'])
                 
-                # Все время - используем общую статистику канала.
-                # Если по какой-то причине общее число просмотров не получено (0/None),
-                # используем безопасный фолбэк: недельную сумму, чтобы не было парадокса
-                # "за неделю больше, чем за все время".
+                # Все время - используем общую статистику канала из API
                 channel_total_views = int(data['channel_stats'].get('total_views', 0) or 0)
-                # Безопасность: не допускаем ситуации, когда all_time < week
-                if channel_total_views < week_views_sum:
-                    channel_total_views = week_views_sum
-                summary['all_time']['views'] += channel_total_views
-                # Для лайков и комментариев используем недельные данные как приближение
+                channel_total_videos = int(data['channel_stats'].get('total_videos', 0) or 0)
+                channel_subscribers = int(data['channel_stats'].get('subscribers', 0) or 0)
+                
+                # Для "за все время" используем реальные данные канала
+                # ВАЖНО: YouTube API не предоставляет общее количество лайков/комментариев канала,
+                # только для отдельных видео. Поэтому для лайков и комментариев показываем недельные данные
+                # с пометкой, что это приближение.
+                summary['all_time']['views'] += channel_total_views if channel_total_views > 0 else 0
+                # Лайки и комментарии за все время - используем недельные как приближение
+                # (это ограничение YouTube API, общее количество недоступно)
                 summary['all_time']['likes'] += week_likes_sum
                 summary['all_time']['comments'] += week_comments_sum
-                summary['all_time']['subscribers'] += int(data['channel_stats'].get('subscribers', 0) or 0)
-                summary['all_time']['videos'] += int(data['channel_stats'].get('total_videos', 0) or 0)
+                summary['all_time']['subscribers'] += channel_subscribers
+                summary['all_time']['videos'] += channel_total_videos
 
-                # Прирост подписчиков
-                channels = channel_manager.get_channels()
-                channel_id = channels[[c['name'] for c in channels].index(channel_name)]['channel_id']
+                # Прирост подписчиков - используем сохраненный channel_id
+                channel_id = data['channel_id']  # Используем resolved channel_id из данных
                 gains = self._update_and_get_subs_gains(
                     channel_id=channel_id,
-                    current_subs=int(data['channel_stats'].get('subscribers', 0) or 0)
+                    current_subs=channel_subscribers
                 )
                 summary['today']['subs_gain'] += gains['today']
                 summary['yesterday']['subs_gain'] += gains['yesterday']
